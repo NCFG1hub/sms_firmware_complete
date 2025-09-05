@@ -4,6 +4,9 @@
         "ql_timer.h": "c",
         "ql_uart.h": "c",
         "ril_network.h": "c",
-        "sms_command.h": "c"
+        "sms_command.h": "c",
+        "ql_type.h": "c",
+        "ql_stdlib.h": "c",
+        "ql_trace.h": "c"
     }
 }

@@ -93,19 +93,19 @@ static s32 ATResponse_GetLocation_Ex_Handler(char* line, u32 len, void* userdata
         return  RIL_ATRSP_CONTINUE;
     }
 
-    head = Ql_RIL_FindString(line, len, "+CME ERROR:");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>£¬<LF>ERROR<LF>
+    head = Ql_RIL_FindString(line, len, "+CME ERROR:");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>ï¿½ï¿½<LF>ERROR<LF>
     if(head)
     {  
         return  RIL_ATRSP_FAILED;
     }
 
-    head = Ql_RIL_FindLine(line, len, "OK"); // find <CR><LF>OK<CR><LF>, <CR>OK<CR>£¬<LF>OK<LF>
+    head = Ql_RIL_FindLine(line, len, "OK"); // find <CR><LF>OK<CR><LF>, <CR>OK<CR>ï¿½ï¿½<LF>OK<LF>
     if(head)
     {
         return  RIL_ATRSP_SUCCESS;
     }
 
-    head = Ql_RIL_FindLine(line, len, "ERROR");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>£¬<LF>ERROR<LF>
+    head = Ql_RIL_FindLine(line, len, "ERROR");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>ï¿½ï¿½<LF>ERROR<LF>
     if(head)
     {
         return  RIL_ATRSP_FAILED;

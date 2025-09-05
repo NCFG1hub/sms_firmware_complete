@@ -50,7 +50,7 @@ ril/src/ril_network.c: In function 'ATResponse_CSQ_Handler':
 ril/src/ril_network.c:261: warning: pointer targets in passing argument 1 of 'RIL_Parse_value' differ in signedness
 ril/inc/ril_network.h:270: note: expected 's8 *' but argument is of type 'char *'
 ril/src/ril_network.c: In function 'ATRsp_COPS_Handler':
-ril/src/ril_network.c:512: warning: unused variable 'str'
+ril/src/ril_network.c:514: warning: unused variable 'str'
 - Building build/gcc/obj/ril/src/ril_location.o
 ril/src/ril_location.c: In function 'ATResponse_GetLocation_Ex_Handler':
 ril/src/ril_location.c:78: warning: unused variable 'p2'
@@ -98,21 +98,21 @@ ril/src/ril_location2.c: In function 'OnURCHandler_QLBS':
 ril/src/ril_location2.c:153: warning: array subscript is above array bounds
 - Building build/gcc/obj/ril/src/ril_gnss.o
 ril/src/ril_gnss.c: In function 'ATResponse_GNSSRead_Hdlr':
-ril/src/ril_gnss.c:132: warning: unused variable 'strTmp'
-ril/src/ril_gnss.c:130: warning: unused variable 'p2'
-ril/src/ril_gnss.c:129: warning: unused variable 'p1'
+ril/src/ril_gnss.c:143: warning: unused variable 'strTmp'
+ril/src/ril_gnss.c:141: warning: unused variable 'p2'
+ril/src/ril_gnss.c:140: warning: unused variable 'p1'
 ril/src/ril_gnss.c: In function 'OnURCHandler_GNSSCMD':
-ril/src/ril_gnss.c:237: warning: passing argument 1 of 'callback_GNSSCMD' discards qualifiers from pointer target type
-ril/src/ril_gnss.c:237: note: expected 'char *' but argument is of type 'const char *'
+ril/src/ril_gnss.c:249: warning: passing argument 1 of 'callback_GNSSCMD' discards qualifiers from pointer target type
+ril/src/ril_gnss.c:249: note: expected 'char *' but argument is of type 'const char *'
 ril/src/ril_gnss.c: In function 'OnURCHandler_GNSSAGPS':
-ril/src/ril_gnss.c:250: warning: passing argument 1 of 'callback_GNSSAGPS' discards qualifiers from pointer target type
-ril/src/ril_gnss.c:250: note: expected 'char *' but argument is of type 'const char *'
+ril/src/ril_gnss.c:262: warning: passing argument 1 of 'callback_GNSSAGPS' discards qualifiers from pointer target type
+ril/src/ril_gnss.c:262: note: expected 'char *' but argument is of type 'const char *'
 ril/src/ril_gnss.c: In function 'RIL_GNSS_Read':
-ril/src/ril_gnss.c:309: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+ril/src/ril_gnss.c:321: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
 include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
-ril/src/ril_gnss.c:309: warning: pointer targets in passing argument 1 of 'Ql_strncmp' differ in signedness
+ril/src/ril_gnss.c:321: warning: pointer targets in passing argument 1 of 'Ql_strncmp' differ in signedness
 include/ql_stdlib.h:52: note: expected 'const char *' but argument is of type 'u8 *'
-ril/src/ril_gnss.c:322: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+ril/src/ril_gnss.c:335: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
 include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
 - Building build/gcc/obj/ril/src/ril_init.o
 - Building build/gcc/obj/ril/src/ril_ftp.o
@@ -160,88 +160,478 @@ ril/src/ril_mqtt.c:314: warning: pointer targets in assignment differ in signedn
 ril/src/ril_mqtt.c:319: warning: pointer targets in assignment differ in signedness
 ril/src/ril_mqtt.c:299: warning: unused variable 'i'
 - Building build/gcc/obj/custom/main.o
-In file included from custom/main.c:20:
-custom/dfota/inc/ril_flash.h:10: error: expected identifier or '(' before '{' token
-custom/dfota/inc/ril_flash.h:13: warning: data definition has no type or storage class
-custom/dfota/inc/ril_flash.h:13: warning: type defaults to 'int' in declaration of 'STORAGE_RESPONSE'
+custom/main.c: In function 'proc_main_task':
+custom/main.c:467: warning: implicit declaration of function 'my_strtok'
+custom/main.c:467: warning: initialization makes pointer from integer without a cast
+custom/main.c:470: warning: initialization makes pointer from integer without a cast
+custom/main.c:474: warning: initialization makes pointer from integer without a cast
+custom/main.c:478: warning: initialization makes pointer from integer without a cast
+custom/main.c:482: warning: initialization makes pointer from integer without a cast
+custom/main.c:486: warning: initialization makes pointer from integer without a cast
+custom/main.c:489: warning: initialization makes pointer from integer without a cast
+custom/main.c:493: warning: initialization makes pointer from integer without a cast
+custom/main.c:497: warning: initialization makes pointer from integer without a cast
+custom/main.c:450: warning: unused variable 'cellNeghborData'
+custom/main.c:607: warning: passing argument 1 of 'Ql_snprintf' from incompatible pointer type
+custom/main.c:607: note: expected 'char *' but argument is of type 'char **'
+custom/main.c:608: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:608: warning: passing argument 3 of 'publishMessage' from incompatible pointer type
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char **'
+custom/main.c:614: warning: statement with no effect
+custom/main.c:619: warning: statement with no effect
+custom/main.c:432: warning: unused variable 'isGnssPowered'
+custom/main.c:431: warning: unused variable 'isFisrtTimeGnss'
 custom/main.c: In function 'checkConnectionStatus':
-custom/main.c:479: warning: assignment makes pointer from integer without a cast
-custom/main.c:493: warning: assignment makes pointer from integer without a cast
-custom/main.c:507: warning: assignment makes pointer from integer without a cast
-custom/main.c:521: warning: assignment makes pointer from integer without a cast
-custom/main.c:535: warning: assignment makes pointer from integer without a cast
-custom/main.c:548: warning: assignment makes pointer from integer without a cast
+custom/main.c:736: warning: unused variable 'ret'
 custom/main.c: In function 'CallBack_UART_Hdlr':
-custom/main.c:619: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
+custom/main.c:820: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
 include/ql_stdlib.h:55: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:636: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
+custom/main.c:837: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
 include/ql_stdlib.h:55: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:653: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
+custom/main.c:854: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
 include/ql_stdlib.h:55: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c:869: warning: pointer targets in passing argument 5 of 'RIL_MQTT_QMTPUB' differ in signedness
+ril/inc/ril_mqtt.h:264: note: expected 'u8 *' but argument is of type 'char *'
 custom/main.c: In function 'mqtt_recv':
-custom/main.c:718: warning: pointer targets in passing argument 1 of 'Ql_strcmp' differ in signedness
-include/ql_stdlib.h:51: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:715: warning: unused variable 'payload'
-custom/main.c: In function 'MqttCallback_Timer':
-custom/main.c:852: warning: implicit declaration of function 'RIL_MQTT_QMTCFG_Showrecvlen'
-custom/main.c:869: warning: pointer targets in passing argument 2 of 'RIL_MQTT_QMTOPEN' differ in signedness
+custom/main.c:919: warning: declaration of 'deviceImei' shadows a global declaration
+custom/main.c:216: warning: shadowed declaration is here
+custom/main.c:920: warning: implicit declaration of function 'get_device_imei'
+custom/main.c:938: warning: passing argument 1 of 'parseGPRMC' from incompatible pointer type
+custom/dfota/inc/gnss_parser.h:14: note: expected 'const char *' but argument is of type 'u8 (*)[2048]'
+custom/main.c:941: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:941: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:948: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:948: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:958: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:958: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:965: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:965: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:972: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:972: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:968: warning: unused variable 'myMovementAlarm'
+custom/main.c:979: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:979: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:975: warning: unused variable 'myGeofenceAlarm'
+custom/main.c:984: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:984: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:992: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:992: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:999: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:999: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1006: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1006: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1002: warning: unused variable 'myArmDisarm'
+custom/main.c:1013: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1013: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1020: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1020: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1025: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1025: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1033: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1033: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1038: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1038: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1044: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1044: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1050: warning: pointer targets in passing argument 2 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1050: warning: pointer targets in passing argument 3 of 'publishMessage' differ in signedness
+custom/main.c:258: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c: In function 'connectToMqtt':
+custom/main.c:1110: warning: implicit declaration of function 'RIL_MQTT_QMTCFG_Showrecvlen'
+custom/main.c:1118: warning: pointer targets in passing argument 2 of 'RIL_MQTT_QMTOPEN' differ in signedness
 ril/inc/ril_mqtt.h:167: note: expected 'u8 *' but argument is of type 'char *'
-custom/main.c:905: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
-include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:927: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
-include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c: In function 'loggInToMqtt':
+custom/main.c:1139: warning: pointer targets in passing argument 2 of 'RIL_MQTT_QMTCONN' differ in signedness
+ril/inc/ril_mqtt.h:198: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:1139: warning: pointer targets in passing argument 4 of 'RIL_MQTT_QMTCONN' differ in signedness
+ril/inc/ril_mqtt.h:198: note: expected 'u8 *' but argument is of type 'char *'
 custom/main.c: In function 'publishMessage':
-custom/main.c:955: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+custom/main.c:1199: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
 include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
 custom/main.c: In function 'GNSS_Get_FixStatus_from_RMC':
-custom/main.c:971: warning: pointer targets in initialization differ in signedness
-custom/main.c:981: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+custom/main.c:1217: warning: pointer targets in initialization differ in signedness
+custom/main.c:1227: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
 include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:972: warning: unused variable 'fixed'
-custom/main.c: In function 'GnssCallback_Timer':
-custom/main.c:1043: warning: implicit declaration of function 'RIL_GNSS_Open'
-custom/main.c:1070: warning: implicit declaration of function 'RIL_GNSS_EPO_Config_APN'
-custom/main.c:1105: warning: implicit declaration of function 'RIL_GNSS_AGPS'
-custom/main.c:1119: warning: implicit declaration of function 'RIL_GNSS_AGPSAID'
-custom/main.c:1132: warning: declaration of 'ret' shadows a previous local
-custom/main.c:1036: warning: shadowed declaration is here
-custom/main.c:1132: warning: implicit declaration of function 'RIL_GNSS_Read'
-custom/main.c:1156: warning: pointer targets in passing argument 1 of 'Ql_strcmp' differ in signedness
+custom/main.c:1218: warning: unused variable 'fixed'
+custom/main.c: In function 'powerGnss':
+custom/main.c:1285: warning: implicit declaration of function 'RIL_GNSS_Open'
+custom/main.c: In function 'configureGnss':
+custom/main.c:1313: warning: implicit declaration of function 'RIL_GNSS_EPO_Config_APN'
+custom/main.c: In function 'downloadGnssData':
+custom/main.c:1359: warning: implicit declaration of function 'RIL_GNSS_AGPS'
+custom/main.c: In function 'injectGnssData':
+custom/main.c:1379: warning: implicit declaration of function 'RIL_GNSS_AGPSAID'
+custom/main.c: In function 'fixGnssPosition':
+custom/main.c:1403: warning: implicit declaration of function 'RIL_GNSS_Read'
+custom/main.c: In function 'readAllGnssNmea':
+custom/main.c:1441: warning: pointer targets in passing argument 1 of 'Ql_strcmp' differ in signedness
 include/ql_stdlib.h:51: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:1156: warning: pointer targets in passing argument 2 of 'Ql_strcmp' differ in signedness
+custom/main.c:1441: warning: pointer targets in passing argument 2 of 'Ql_strcmp' differ in signedness
 include/ql_stdlib.h:51: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:1161: warning: pointer targets in passing argument 1 of 'Ql_strcpy' differ in signedness
+custom/main.c:1446: warning: pointer targets in passing argument 1 of 'Ql_strcpy' differ in signedness
 include/ql_stdlib.h:47: note: expected 'char *' but argument is of type 'u8 *'
-custom/main.c:1161: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+custom/main.c:1446: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
 include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:1163: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+custom/main.c:1447: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c:1449: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
 include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
 custom/main.c: In function 'SMS_Initialize':
-custom/main.c:1403: warning: unused variable 'nTotal'
-custom/main.c:1402: warning: unused variable 'nUsed'
-custom/main.c:1401: warning: unused variable 'nCurrStorage'
+custom/main.c:1688: warning: unused variable 'nTotal'
+custom/main.c:1687: warning: unused variable 'nUsed'
+custom/main.c:1686: warning: unused variable 'nCurrStorage'
 custom/main.c: In function 'SMS_TextMode_Read':
-custom/main.c:1461: warning: unused variable 'pSubmitTextInfo'
+custom/main.c:1746: warning: unused variable 'pSubmitTextInfo'
 custom/main.c: In function 'SMS_TextMode_Send':
-custom/main.c:1554: warning: pointer targets in passing argument 4 of 'RIL_SMS_SendSMS_Text' differ in signedness
+custom/main.c:1839: warning: pointer targets in passing argument 4 of 'RIL_SMS_SendSMS_Text' differ in signedness
 ril/inc/ril_sms.h:316: note: expected 'u8 *' but argument is of type 'char *'
-custom/main.c:1545: warning: unused variable 'strConMsgChSeg3'
-custom/main.c:1544: warning: unused variable 'strConMsgChSeg2'
-custom/main.c:1543: warning: unused variable 'strConMsgChSeg1'
-custom/main.c:1542: warning: unused variable 'strConMsgSeg4'
-custom/main.c:1541: warning: unused variable 'strConMsgSeg3'
-custom/main.c:1540: warning: unused variable 'strConMsgSeg2'
-custom/main.c:1539: warning: unused variable 'strConMsgSeg1'
+custom/main.c:1830: warning: unused variable 'strConMsgChSeg3'
+custom/main.c:1829: warning: unused variable 'strConMsgChSeg2'
+custom/main.c:1828: warning: unused variable 'strConMsgChSeg1'
+custom/main.c:1827: warning: unused variable 'strConMsgSeg4'
+custom/main.c:1826: warning: unused variable 'strConMsgSeg3'
+custom/main.c:1825: warning: unused variable 'strConMsgSeg2'
+custom/main.c:1824: warning: unused variable 'strConMsgSeg1'
 custom/main.c: In function 'Hdlr_RecvNewSMS':
-custom/main.c:1804: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+custom/main.c:2089: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
 include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
-custom/main.c:1813: warning: unused variable 'count'
-custom/main.c:1645: warning: unused variable 'aReplyCon'
-custom/main.c:1640: warning: unused variable 'uMsgRef'
+custom/main.c:2098: warning: unused variable 'count'
+custom/main.c:1930: warning: unused variable 'aReplyCon'
+custom/main.c:1925: warning: unused variable 'uMsgRef'
 custom/main.c: In function 'loadConfig':
-custom/main.c:1883: error: 'servefindIntervalMinrPort' undeclared (first use in this function)
-custom/main.c:1883: error: (Each undeclared identifier is reported only once
-custom/main.c:1883: error: for each function it appears in.)
-custom/main.c:1886: error: 'peritripReportingodicFindMode' undeclared (first use in this function)
-make/gcc/gcc_makefiledef:93: recipe for target 'build/gcc/obj/custom/main.o' failed
-make: *** [build/gcc/obj/custom/main.o] Error 1
+custom/main.c:2111: warning: passing argument 2 of 'readFromFlash' from incompatible pointer type
+custom/dfota/inc/sms_command.h:41: note: expected 'char *' but argument is of type 'char (*)[4]'
+custom/main.c:2148: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2157: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2166: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2175: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2184: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2194: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2203: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2211: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2220: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2230: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2240: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2249: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2259: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2269: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2279: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2289: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2299: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2309: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2319: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2345: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2355: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2364: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2373: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/main.c:2380: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c:2385: warning: pointer targets in passing argument 2 of 'Ql_strcat' differ in signedness
+include/ql_stdlib.h:49: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c:2410: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c:2410: warning: pointer targets in passing argument 2 of 'Ql_strncat' differ in signedness
+include/ql_stdlib.h:50: note: expected 'const char *' but argument is of type 'u8 *'
+custom/main.c: At top level:
+custom/dfota/inc/sms_command.h:8: warning: 'handle_www_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:9: warning: 'handle_heartbeat_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:10: warning: 'handle_logger_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:11: warning: 'handle_shock_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:12: warning: 'handle_set_odo_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:13: warning: 'handle_ignition_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:14: warning: 'handle_disable_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:15: warning: 'handle_mainpower_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:16: warning: 'handle_speed_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:17: warning: 'handle_listen_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:18: warning: 'handle_alarm_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:19: warning: 'handle_trip_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:20: warning: 'handle_find_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:21: warning: 'handle_help_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:22: warning: 'handle_sleep_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:23: warning: 'handle_reboot_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:24: warning: 'handle_version_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:25: warning: 'handle_status_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:26: warning: 'handle_settings_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:27: warning: 'handle_sms_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:28: warning: 'handle_time_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:29: warning: 'handle_deluser_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:30: warning: 'handle_listuser_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:31: warning: 'handle_password_read_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:32: warning: 'handle_getreport_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:33: warning: 'handle_password_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:34: warning: 'handle_allowpublic_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:35: warning: 'handle_name_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:36: warning: 'handle_adduser_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:37: warning: 'handle_add_command' declared 'static' but never defined
+custom/dfota/inc/sms_command.h:38: warning: 'is_authorized' declared 'static' but never defined
+custom/dfota/inc/gnss_parser.h:13: warning: 'nmea2decimal' declared 'static' but never defined
+custom/main.c:1435: warning: 'readAllGnssNmea' defined but not used
+custom/main.c:1399: warning: 'fixGnssPosition' defined but not used
+custom/main.c:1356: warning: 'downloadGnssData' defined but not used
+custom/main.c:1303: warning: 'configureGnss' defined but not used
+custom/main.c:1283: warning: 'powerGnss' defined but not used
+custom/main.c:161: warning: 'gRespBuf' defined but not used
+custom/main.c:221: warning: 'test_data' defined but not used
+custom/main.c:223: warning: 'device_topic' defined but not used
+custom/main.c:229: warning: 'g_cell' defined but not used
+custom/main.c:242: warning: 'proc_handle' declared 'static' but never defined
+custom/main.c:306: warning: 'HandleUrc' defined but not used
+custom/main.c:338: warning: 'AT_CELL_NEIGHBOR_HANDLER' defined but not used
+custom/main.c: In function 'CallBack_UART_Hdlr':
+custom/main.c:896: warning: 'ret' may be used uninitialized in this function
+- Building build/gcc/obj/custom/dfota/src/dfota_main.o
+custom/dfota/src/dfota_main.c: In function 'Ql_DFOTA_StartUpgrade':
+custom/dfota/src/dfota_main.c:71: warning: implicit declaration of function 'FTP_DfotaMain'
+- Building build/gcc/obj/custom/dfota/src/tracker_functions.o
+custom/dfota/src/tracker_functions.c: In function 'get_gsm_signal_strength':
+custom/dfota/src/tracker_functions.c:46: warning: pointer targets in passing argument 1 of 'RIL_NW_GetSignalQuality' differ in signedness
+ril/inc/ril_network.h:120: note: expected 'u32 *' but argument is of type 's32 *'
+custom/dfota/src/tracker_functions.c:46: warning: pointer targets in passing argument 2 of 'RIL_NW_GetSignalQuality' differ in signedness
+ril/inc/ril_network.h:120: note: expected 'u32 *' but argument is of type 's32 *'
+custom/dfota/src/tracker_functions.c: In function 'get_battery_percentage':
+custom/dfota/src/tracker_functions.c:73: warning: passing argument 2 of 'Ql_ADC_Read' from incompatible pointer type
+include/ql_adc.h:89: note: expected 'u16 *' but argument is of type 'u32 *'
+custom/dfota/src/tracker_functions.c: In function 'get_external_power_status':
+custom/dfota/src/tracker_functions.c:95: warning: passing argument 2 of 'Ql_ADC_Read' from incompatible pointer type
+include/ql_adc.h:89: note: expected 'u16 *' but argument is of type 'u32 *'
+custom/dfota/src/tracker_functions.c: In function 'get_last_known_location':
+custom/dfota/src/tracker_functions.c:115: warning: 'ret' is used uninitialized in this function
+custom/dfota/src/tracker_functions.c: In function 'get_mileage':
+custom/dfota/src/tracker_functions.c:122: warning: 'ret' is used uninitialized in this function
+custom/dfota/src/tracker_functions.c: In function 'get_gsm_signal_strength':
+custom/dfota/src/tracker_functions.c:45: warning: 'rssi_dBm' may be used uninitialized in this function
+- Building build/gcc/obj/custom/dfota/src/gnss_parser.o
+- Building build/gcc/obj/custom/dfota/src/dfota_ftp.o
+custom/dfota/src/dfota_ftp.c: In function 'DoUpgrade':
+custom/dfota/src/dfota_ftp.c:222: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:239: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:247: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:266: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:269: warning: pointer targets in passing argument 1 of 'Ql_DFOTA_WriteData' differ in signedness
+include/ql_dfota.h:84: note: expected 's8 *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_ftp.c:275: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:297: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_ftp.c:306: warning: 'return' with no value, in function returning non-void
+- Building build/gcc/obj/custom/dfota/src/dfota_http_code.o
+custom/dfota/src/dfota_http_code.c: In function 'DecodeHttpResult':
+custom/dfota/src/dfota_http_code.c:75: warning: pointer targets in passing argument 1 of 'Ql_atoi' differ in signedness
+include/ql_stdlib.h:41: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http_code.c: In function 'http_DecodeURL':
+custom/dfota/src/dfota_http_code.c:147: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http_code.c:147: warning: pointer targets in passing argument 1 of 'http_ip_check' differ in signedness
+custom/dfota/src/dfota_http_code.c:52: note: expected 'char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http_code.c:192: warning: pointer targets in passing argument 1 of 'Ql_atoi' differ in signedness
+include/ql_stdlib.h:41: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http_code.c:103: warning: unused variable 'ip_validity'
+custom/dfota/src/dfota_http_code.c:101: warning: unused variable 'ipadd'
+custom/dfota/src/dfota_http_code.c: In function 'DecodeHttpLine':
+custom/dfota/src/dfota_http_code.c:318: warning: pointer targets in passing argument 1 of 'Ql_atoi' differ in signedness
+include/ql_stdlib.h:41: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http_code.c: In function 'http_DecodeHeader':
+custom/dfota/src/dfota_http_code.c:374: warning: unused variable 'httpContext_p'
+custom/dfota/src/dfota_http_code.c:371: warning: unused variable 'startpos'
+- Building build/gcc/obj/custom/dfota/src/dfota_http.o
+custom/dfota/src/dfota_http.c: In function 'HTTP_IsHttpServer':
+custom/dfota/src/dfota_http.c:64: warning: implicit declaration of function 'Ql_StrToUpper'
+custom/dfota/src/dfota_http.c: In function 'HTTP_DfotaMain':
+custom/dfota/src/dfota_http.c:94: warning: pointer targets in passing argument 1 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:94: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:95: warning: pointer targets in passing argument 1 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:95: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:96: warning: pointer targets in passing argument 1 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:96: warning: pointer targets in passing argument 2 of 'Ql_strcpy' differ in signedness
+include/ql_stdlib.h:47: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:124: warning: pointer targets in passing argument 1 of 'Ql_strstr' differ in signedness
+include/ql_stdlib.h:55: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:124: warning: pointer targets in assignment differ in signedness
+custom/dfota/src/dfota_http.c:128: warning: pointer targets in passing argument 1 of 'Ql_strlen' differ in signedness
+include/ql_stdlib.h:54: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c: In function 'http_SendHttpGetHead':
+custom/dfota/src/dfota_http.c:274: warning: pointer targets in passing argument 2 of 'Ql_strncpy' differ in signedness
+include/ql_stdlib.h:48: note: expected 'const char *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:276: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:296: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:306: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:316: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:326: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:336: warning: pointer targets in passing argument 2 of 'Ql_SOC_Send' differ in signedness
+include/ql_socket.h:265: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/dfota_http.c:266: warning: unused variable 'retValue'
+custom/dfota/src/dfota_http.c: In function 'http_RecvHttpHead':
+custom/dfota/src/dfota_http.c:359: warning: unused variable 'entryfunctionexe'
+custom/dfota/src/dfota_http.c: In function 'http_RecvHttpBody':
+custom/dfota/src/dfota_http.c:532: warning: pointer targets in passing argument 1 of 'Ql_DFOTA_WriteData' differ in signedness
+include/ql_dfota.h:84: note: expected 's8 *' but argument is of type 'u8 *'
+custom/dfota/src/dfota_http.c:554: warning: 'return' with no value, in function returning non-void
+custom/dfota/src/dfota_http.c:508: warning: 'retValue' may be used uninitialized in this function
+custom/dfota/src/dfota_http.c:510: warning: 'fileDLpresentReport' may be used uninitialized in this function
+- Building build/gcc/obj/custom/dfota/src/json_parser.o
+custom/dfota/src/json_parser.c:11: warning: conflicting types for built-in function 'isspace'
+- Building build/gcc/obj/custom/dfota/src/sms_command.o
+custom/dfota/src/sms_command.c:12:19: warning: extra tokens at end of #include directive
+custom/dfota/src/sms_command.c: In function 'sms_reply':
+custom/dfota/src/sms_command.c:37: warning: passing argument 1 of 'RIL_SMS_SendSMS_Text' discards qualifiers from pointer target type
+ril/inc/ril_sms.h:316: note: expected 'char *' but argument is of type 'const char *'
+custom/dfota/src/sms_command.c: In function 'handle_adduser_command':
+custom/dfota/src/sms_command.c:157: warning: passing argument 2 of 'saveBytesToFlash' makes pointer from integer without a cast
+custom/dfota/src/sms_command.c:18: note: expected 'char *' but argument is of type 'u8'
+custom/dfota/src/sms_command.c: In function 'handle_name_command':
+custom/dfota/src/sms_command.c:192: warning: passing argument 2 of 'saveBytesToFlash' discards qualifiers from pointer target type
+custom/dfota/src/sms_command.c:18: note: expected 'char *' but argument is of type 'const char *'
+custom/dfota/src/sms_command.c: In function 'handle_status_command':
+custom/dfota/src/sms_command.c:544: warning: implicit declaration of function 'get_gsm_signal_strength'
+custom/dfota/src/sms_command.c:548: warning: implicit declaration of function 'get_battery_percentage'
+custom/dfota/src/sms_command.c:549: warning: implicit declaration of function 'get_external_power_status'
+custom/dfota/src/sms_command.c:550: warning: implicit declaration of function 'get_ignition_status'
+custom/dfota/src/sms_command.c: In function 'handle_version_command':
+custom/dfota/src/sms_command.c:581: warning: implicit declaration of function 'get_device_imei'
+custom/dfota/src/sms_command.c: In function 'handle_find_command':
+custom/dfota/src/sms_command.c:678: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:684: warning: implicit declaration of function 'get_mileage'
+custom/dfota/src/sms_command.c:685: warning: implicit declaration of function 'reverse_geocode'
+custom/dfota/src/sms_command.c:685: warning: initialization makes pointer from integer without a cast
+custom/dfota/src/sms_command.c:695: warning: implicit declaration of function 'get_nearest_places'
+custom/dfota/src/sms_command.c: In function 'handle_trip_command':
+custom/dfota/src/sms_command.c:760: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:777: warning: implicit declaration of function 'stop_current_trip'
+custom/dfota/src/sms_command.c:782: warning: implicit declaration of function 'get_trip_summary'
+custom/dfota/src/sms_command.c: In function 'handle_alarm_command':
+custom/dfota/src/sms_command.c:794: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_listen_command':
+custom/dfota/src/sms_command.c:819: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_speed_command':
+custom/dfota/src/sms_command.c:843: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_mainpower_command':
+custom/dfota/src/sms_command.c:891: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_disable_command':
+custom/dfota/src/sms_command.c:918: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_ignition_command':
+custom/dfota/src/sms_command.c:948: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_set_odo_command':
+custom/dfota/src/sms_command.c:975: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_shock_command':
+custom/dfota/src/sms_command.c:1003: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_logger_command':
+custom/dfota/src/sms_command.c:1034: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:1038: warning: implicit declaration of function 'storage_clear_logs'
+custom/dfota/src/sms_command.c: In function 'handle_heartbeat_command':
+custom/dfota/src/sms_command.c:1051: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'handle_www_command':
+custom/dfota/src/sms_command.c:1086: warning: passing argument 1 of 'Ql_toupper' makes integer from pointer without a cast
+include/ql_stdlib.h:56: note: expected 's32' but argument is of type 'char *'
+custom/dfota/src/sms_command.c: In function 'sms_pump':
+custom/dfota/src/sms_command.c:1226: warning: declaration of 'smsSender' shadows a global declaration
+custom/dfota/src/sms_command.c:29: warning: shadowed declaration is here
+custom/dfota/src/sms_command.c:1226: warning: declaration of 'smsContent' shadows a global declaration
+custom/dfota/src/sms_command.c:28: warning: shadowed declaration is here
+custom/dfota/src/sms_command.c:1420:30: warning: multi-character character constant
+custom/dfota/src/sms_command.c: In function 'saveBytesToFlash':
+custom/dfota/src/sms_command.c:1420: warning: overflow in implicit constant conversion
+custom/dfota/src/sms_command.c:1421: warning: pointer targets in passing argument 2 of 'Ql_FS_Write' differ in signedness
+include/ql_fs.h:214: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:1421: warning: unused variable 'resp'
+custom/dfota/src/sms_command.c: In function 'readFromFlash':
+custom/dfota/src/sms_command.c:1432: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:1432: warning: pointer targets in passing argument 4 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u32 *' but argument is of type 'int *'
+custom/dfota/src/sms_command.c: In function 'readFromFlashString':
+custom/dfota/src/sms_command.c:1445: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
+custom/dfota/src/sms_command.c:1445: warning: pointer targets in passing argument 4 of 'Ql_FS_Read' differ in signedness
+include/ql_fs.h:182: note: expected 'u32 *' but argument is of type 'int *'
+custom/dfota/src/sms_command.c: At top level:
+custom/dfota/inc/gnss_parser.h:13: warning: 'nmea2decimal' declared 'static' but never defined
+custom/dfota/src/sms_command.c:28: warning: 'smsContent' defined but not used
+custom/dfota/src/sms_command.c:29: warning: 'smsSender' defined but not used
+custom/dfota/src/sms_command.c: In function 'handle_status_command':
+custom/dfota/src/sms_command.c:553: warning: 'lat' may be used uninitialized in this function
+custom/dfota/src/sms_command.c:553: warning: 'lon' may be used uninitialized in this function
+----------------------------------------------------
+- GCC Compiling Finished Sucessfully.
+- The target image is in the build/gcc directory.
+----------------------------------------------------
+BIN: build/gcc/APPGS5MDM32A01.bin
+LOD: build/gcc/APPGS5MDM32A01.lod
+Start address: 137428992
+Sector size: 4096

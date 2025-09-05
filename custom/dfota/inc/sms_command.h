@@ -2,6 +2,7 @@
 #define SMS_COMMANDS_H
 
 #include "data_types.h"
+
 /* === Initialize SMS subsystem === */
 void sms_pump(char* smsSender, char* smsContent, DeviceConfig *devConfig);
 static void handle_www_command(const char* sender, const char* body, DeviceConfig *devConfig);
@@ -34,8 +35,11 @@ static void handle_allowpublic_command(const char* sender, const char* body, Dev
 static void handle_name_command(const char* sender, const char* body, DeviceConfig *devConfig);
 static void handle_adduser_command(const char* sender, const char* body, DeviceConfig *devConfig);
 static void handle_add_command(const char* sender, const char* body, DeviceConfig *devConfig);
-static bool is_authorized(const char* number);
-static void get_device_imei(char* out, int maxLen); 
+static bool is_authorized(const char* number, DeviceConfig *g_cfg); 
+
+s32 readFromFlashString(char* fileName,char* data,u32 length);
+s32 readFromFlash(char* fileName,char* data,u32 length);
+void cleanString(char *input, char *output);
 
 
 #endif /* SMS_COMMANDS_H */

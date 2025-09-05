@@ -7,18 +7,37 @@
 #include "ql_adc.h"
 #include "ql_uart.h"
 #include "ql_stdlib.h"
+#include "data_types.h"
+#include "ql_trace.h"
+#include "ql_system.h"
+#include "ql_error.h"
 
 
 
-#define DBG_PORT UART_PORT1
-#define APP_DEBUG(FMT, ...) do { \
-    char __buf[256]; \
-    Ql_sprintf(__buf, FMT, ##__VA_ARGS__); \
-    Ql_UART_Write(DBG_PORT, (u8*)__buf, Ql_strlen(__buf)); \
-} while(0)
+
+char *my_strtok2(char *str, const char *delim); 
+
+#define DEBUG_ENABLE 1
+#if DEBUG_ENABLE > 0
+#define DEBUG_PORT  UART_PORT1
+#define DBG_BUF_LEN   1024
+static char DBG_BUFFER[DBG_BUF_LEN];
+#define APP_DEBUG(FORMAT,...) {\
+    Ql_memset(DBG_BUFFER, 0, DBG_BUF_LEN);\
+    Ql_sprintf(DBG_BUFFER,FORMAT,##__VA_ARGS__); \
+    if (UART_PORT2 == (DEBUG_PORT)) \
+    {\
+        Ql_Debug_Trace(DBG_BUFFER);\
+    } else {\
+        Ql_UART_Write((Enum_SerialPort)(DEBUG_PORT), (u8*)(DBG_BUFFER), Ql_strlen((const char *)(DBG_BUFFER)));\
+    }\
+}
+#else
+#define APP_DEBUG(FORMAT,...) 
+#endif
 
 
-int get_gsm_signal_strength(DeviceConfig *g_cfg){
+int get_gsm_signal_strength(DeviceConfig *g_cfg) {
     s32 rssi;
     s32 ber;
     s32 ret;
@@ -48,7 +67,7 @@ int get_battery_percentage(DeviceConfig *g_cfg){
     s32 ret;
 
     // Init ADC
-    Ql_ADC_Init(adcPin);
+    Ql_ADC_Open(adcPin,ADC_PERIOD_250MS);
 
     // Read ADC
     ret = Ql_ADC_Read(adcPin, &adcValue);
@@ -56,10 +75,11 @@ int get_battery_percentage(DeviceConfig *g_cfg){
         float vAdc = (adcValue * 2.8f) / 1023.0f;
         float vBat = vAdc * ((100.0f + 47.0f) / 47.0f); // Example R1=100k, R2=47k
         APP_DEBUG("ADC=%d, Vadc=%.3f V, Vbat=%.3f V\r\n", adcValue, vAdc, vBat);
+
     } else {
         APP_DEBUG("ADC Read failed\r\n");
     }
-
+    Ql_ADC_Close(adcPin);
     return (int)adcValue;
 }
 
@@ -69,7 +89,7 @@ int get_external_power_status(DeviceConfig *g_cfg){
     s32 ret;
 
     // Init ADC
-    Ql_ADC_Init(adcPin);
+    Ql_ADC_Open(adcPin,ADC_PERIOD_250MS);
 
     // Read ADC
     ret = Ql_ADC_Read(adcPin, &adcValue);
@@ -80,7 +100,7 @@ int get_external_power_status(DeviceConfig *g_cfg){
     } else {
         APP_DEBUG("ADC Read failed\r\n");
     }
-
+     Ql_ADC_Close(adcPin);
     return (int)adcValue;
 }
 
@@ -89,7 +109,7 @@ int get_ignition_status(DeviceConfig *g_cfg){
 }
 
 
-int get_last_known_location(&lat, &lon){
+int get_last_known_location(double* lat, double* lon){
     int ret;
 
     return ret;
@@ -119,8 +139,7 @@ char* get_nearest_places(char* places,int length){
 static s32 ATResponse_IMEI(char* line, u32 len, void* userData)
 {
     char* imeiBuf = (char*)userData;   // userData is caller’s buffer
-
-    // If the line starts with digits, it's the IMEI
+    
     if (Ql_isdigit(line[0])) {
         // Copy only 14 characters
         Ql_memset(imeiBuf, 0, 15);   // clear first
@@ -128,6 +147,7 @@ static s32 ATResponse_IMEI(char* line, u32 len, void* userData)
         imeiBuf[14] = '\0';          // null terminate
         return RIL_ATRSP_SUCCESS;    // done
     }
+    APP_DEBUG("//device imei only = %s\r\n",imeiBuf);
 
     if (Ql_strstr(line, "OK")) {
         return RIL_ATRSP_SUCCESS;
@@ -138,14 +158,72 @@ static s32 ATResponse_IMEI(char* line, u32 len, void* userData)
     return RIL_ATRSP_CONTINUE;
 }
 
-void get_device_imei(char* out, int maxLen) {
+int get_device_imei(char* out, int maxLen) {
     char imei[15] = {0};   // buffer for 14 chars + '\0'
 
-    s32 ret = Ql_RIL_SendATCmd("AT+GSN\r\n", ATResponse_IMEI, (void*)imei, 5000);
+    char strAT[] = "AT+CGSN\0";
+
+    s32 ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT) , ATResponse_IMEI, (void*)imei, 0);
     if (ret == RIL_AT_SUCCESS) {
         Ql_strncpy(out,imei,maxLen);
-        APP_DEBUG("IMEI (14 digits): %s\r\n", imei);
+        out[13] = '\0'; 
+        APP_DEBUG("IMEI (14 digits): %s\r\n", out);
     } else {
         APP_DEBUG("Failed to get IMEI, ret=%d\r\n", ret);
     }
+    return (int)ret;
+}
+
+
+int stop_current_trip(){
+
+    return 1;
+}
+
+
+int get_trip_summary(){
+
+    return 1;
+}
+
+
+int storage_clear_logs(){
+
+    return 1;
+}
+
+
+char *my_strtok2(char *str, const char *delim) {
+    static char *saved = NULL;   // remembers position between calls
+    if (str != NULL) {
+        saved = str;             // initialize new string
+    }
+    if (saved == NULL) {
+        return NULL;             // no more tokens
+    }
+
+    // Skip leading delimiters
+    char *token_start = saved;
+    while (*token_start && Ql_strchr(delim, *token_start)) {
+        token_start++;
+    }
+    if (*token_start == '\0') {
+        saved = NULL;            // reached end
+        return NULL;
+    }
+
+    // Find end of token
+    char *token_end = token_start;
+    while (*token_end && !Ql_strchr(delim, *token_end)) {
+        token_end++;
+    }
+
+    if (*token_end != '\0') {
+        *token_end = '\0';       // terminate token
+        saved = token_end + 1;   // move past delimiter
+    } else {
+        saved = NULL;            // reached end of string
+    }
+
+    return token_start;
 }

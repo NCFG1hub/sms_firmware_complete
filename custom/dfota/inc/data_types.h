@@ -2,7 +2,7 @@
 #ifndef DATA_TYPES
 #define DATA_TYPES
 
-
+#include "ql_type.h"
 /* === Limits === */
 #define MAX_USERS        10
 #define MAX_NAME_LEN     16
@@ -15,6 +15,9 @@
 
 #define MAX_USERS 10
 #define GNSS_DATA_LENGTH 2048
+
+
+
 
 typedef enum{
     STATE_NW_QUERY_STATE,
@@ -61,6 +64,7 @@ typedef struct {
     u16   rptSec;       // report interval in seconds
     u16   slpSec;       // sleep interval in seconds
     u8    runMode;      // 0 = off, 1 = TCP
+    
 
     u8    sleepMode;
     u8    periodicFindMode;   // 0=off, 1=on
@@ -92,9 +96,47 @@ typedef struct {
     MQTT_STATE_T mqtt_state;
     Enum_GNSS_STATE gnss_state;
     char FW_VERSION[10];
-    char HW_VERSION[10]
-    char imei[14]
+    char HW_VERSION[10];
+    char imei[15];
+    u8 outputControl;
+    char serverIP[20];
+    char deviceTopic[22];
+    char clientId[30];
+    u8 isSimCardReaddy;
+    u8 isGsmNetworkGotten;
+    u8 isGpRsNetworkGotten;
+    u8 isApnSet;
+    u8 isMqttOpen;
+    u8 isMqttLoggedIn;
+    u8 isSubscribedToTopic;
+    u8 isGnssPowered;
+    u8 isGnssConfigured;
+    u8 isGnssSetupComplete;
+    u8 isGnssDowloaded;
+    u8 isGnssDataInjected;
+    u8 isFixedGnssPosition;
+    u8 isGnssRead;
 } DeviceConfig;
+
+
+
+typedef struct {
+    u16 mcc;
+    u16 mnc;
+    u32 lac;
+    s32 cellId;
+    s16 rssi;
+    u16 timeAd;
+} myCellInfo;
+
+
+
+typedef enum {
+    DISCONNECTED,
+    SERVERCONNECTION,
+    LOGGEDIN
+
+} MQTT_CON_STATUS_T;
 
 #endif
 
