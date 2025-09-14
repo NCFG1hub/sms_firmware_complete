@@ -39,7 +39,9 @@ static bool is_authorized(const char* number, DeviceConfig *g_cfg);
 
 s32 readFromFlashString(char* fileName,char* data,u32 length);
 s32 readFromFlash(char* fileName,char* data,u32 length);
+s32 readAlphabetFromFlash(char* fileName,char* data,u32 length);
 void cleanString(char *input, char *output);
+void cleanAlpha(char *input, char *output);
 
 
 #endif /* SMS_COMMANDS_H */

@@ -36,7 +36,6 @@
 #include "ql_stdlib.h"
 #include "ql_error.h"
 #include "ql_trace.h"
-#include "ql_uart.h"
 
 static s32 ATResponse_QGNSSC_Handler(char* line, u32 len, void* userdata);
 static s32 ATResponse_GNSSRead_Hdlr(char* line, u32 len, void* userData);
@@ -44,12 +43,7 @@ static s32 ATResponse_GNSSReadTS_Hdlr(char* line, u32 len, void* userData);
 static CB_GNSSCMD     callback_GNSSCMD = NULL;
 static CB_GNSSCMD     callback_GNSSAGPS = NULL;
 
-#define DBG_PORT UART_PORT1
-#define APP_DEBUG(FMT, ...) do { \
-    char __buf[256]; \
-    Ql_sprintf(__buf, FMT, ##__VA_ARGS__); \
-    Ql_UART_Write(DBG_PORT, (u8*)__buf, Ql_strlen(__buf)); \
-} while(0)
+
 
 
 
@@ -136,7 +130,6 @@ static s32 ATResponse_GNSSReadTS_Hdlr(char* line, u32 len, void* userData)
 
 static s32 ATResponse_GNSSRead_Hdlr(char* line, u32 len, void* userData)
 {
-    APP_DEBUG("GNSS RESPONSE %s\r\n",line);
 	char* p1 = NULL;
 	char* p2 = NULL;
 	char* head = Ql_RIL_FindString(line, len, "+QGNSSRD:"); //continue wait
@@ -149,7 +142,6 @@ static s32 ATResponse_GNSSRead_Hdlr(char* line, u32 len, void* userData)
 	}
     else
     {
-        APP_DEBUG("GNSS SECOND %s\r\n",line);
         head = Ql_RIL_FindString(line, len, "$GNRMC");
         if(head)
         {
@@ -328,7 +320,6 @@ s32 RIL_GNSS_Read(u8 *item, u8 *rdBuff)
     }
 
 	ret = Ql_RIL_SendATCmd(strAT, atLength, ATResponse_GNSSRead_Hdlr, readBuff, 0);
-    APP_DEBUG("Command sent =  %s\r\n",strAT);
 
     if(RIL_ATRSP_SUCCESS == ret)
     {
@@ -387,7 +378,7 @@ s32 RIL_GNSS_AGPS(CB_GNSSCMD cb_GNSSCMD_hdl)
 	callback_GNSSAGPS = cb_GNSSCMD_hdl;
 	Ql_memset(strAT, 0x0, sizeof(strAT));
 
-	atLength = Ql_sprintf(strAT, "AT+QGAGPS");
+	atLength = Ql_sprintf(strAT, "AT+QGAGPS=1");
 
 	return Ql_RIL_SendATCmd(strAT, atLength, NULL, NULL, 0);
 }

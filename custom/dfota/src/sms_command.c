@@ -577,8 +577,8 @@ static void handle_version_command(const char* sender, const char* body, DeviceC
         return;
     }
 
-    char imei[20] = {0};
-    get_device_imei(imei, sizeof(imei)); // Reads IMEI from GSM module
+    //char imei[20] = {0};
+    //get_device_imei(imei, sizeof(imei)); // Reads IMEI from GSM module
 
     char msg[160];
     
@@ -775,10 +775,18 @@ static void handle_trip_command(const char* sender, const char* body, DeviceConf
 
     } else if (Ql_strcmp(cmd, "TRIP,NOW,0") == 0) {
         stop_current_trip();
+        char tripData[1] = {0};
+        tripData[0] = 0;
+        saveBytesToFlash("trip.txt",tripData,Ql_strlen(tripData)); 
+        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH);   // set GPIO1 = HIGH
         sms_reply(sender, "Trip stopped");
 
     } else if (Ql_strcmp(cmd, "TRIP,NOW,1") == 0) {
         char tripSummary[160];
+        char tripData[1] = {0};
+        tripData[0] = 1;
+        saveBytesToFlash("trip.txt",tripData,Ql_strlen(tripData)); 
+        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW);   // set GPIO1 = HIGH
         get_trip_summary(tripSummary, sizeof(tripSummary));
         sms_reply(sender, tripSummary);
 
@@ -1078,6 +1086,23 @@ static void handle_heartbeat_command(const char* sender, const char* body, Devic
 
 
 
+static void handle_setImei(const char* sender, const char* body, DeviceConfig *g_cfg) {
+    char cmd[32];
+    Ql_strncpy(cmd, body, sizeof(cmd)-1);
+    char* rawDataFirst =  my_strtok(cmd,",");
+    rawDataFirst = rawDataFirst + Ql_strlen(rawDataFirst) + 1;
+    char* myImei = my_strtok(rawDataFirst,",");
+
+    if (saveBytesToFlash("imei.txt",myImei,Ql_strlen(myImei)) == 0) {
+        char msg[80];
+        Ql_sprintf(msg, "imei set %s", myImei);
+        sms_reply(sender, msg);
+    } else {
+        sms_reply(sender, "Failed to save new user");
+    }
+}
+
+
 /* === Handle WWW SMS Command === */
 static void handle_www_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     APP_DEBUG("my body is ##### %s\r\n", body);
@@ -1126,6 +1151,7 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         
         // Extract host
         extract_key_value(body, "IPN:", host, sizeof(host), ';');
+        host[sizeof(host)] = '\0';
         
 
         // Extract port
@@ -1136,9 +1162,11 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         extract_key_value(body, "APN:", temp, sizeof(temp), ';');
         char* apnPart = my_strtok(temp,",");
         Ql_strcpy(apn,apnPart);
+        apn[Ql_strlen(apnPart)] = '\0';
         apnPart = apnPart + Ql_strlen(apnPart) + 1;
         char* apnUserPart = my_strtok(apnPart,",");
         Ql_strcpy(apnUser,apnUserPart);
+        apnUser[Ql_strlen(apnUserPart)] = '\0';
         apnUserPart = apnUserPart + Ql_strlen(apnUserPart) + 1;
         char* appPassPart =  my_strtok(apnUserPart,",");
         Ql_strcpy(apnPass,appPassPart);
@@ -1165,10 +1193,19 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
 
         /* === Save config === */
         Ql_strncpy(g_cfg->serverHost, host, sizeof(g_cfg->serverHost)-1);
+        g_cfg->serverHost[Ql_strlen(host)] = '\0';
+
         g_cfg->serverPort = (u16)port;
+
         Ql_strncpy(g_cfg->apn, apn, sizeof(g_cfg->apn)-1);
+        g_cfg->apn[Ql_strlen(apn)] = '\0';
+
         Ql_strncpy(g_cfg->apnUser, apnUser, sizeof(g_cfg->apnUser)-1);
+        g_cfg->apnUser[Ql_strlen(apnUser)] = '\0';
+
         Ql_strncpy(g_cfg->apnPass, apnPass, sizeof(g_cfg->apnPass)-1);
+        g_cfg->apnPass[Ql_strlen(apnPass)] = '\0';
+
         g_cfg->rptSec = (u16)rpt;
         g_cfg->slpSec = (u16)slp;
         g_cfg->runMode = (u8)run;
@@ -1176,21 +1213,22 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         
         char* serverHost = Ql_MEM_Alloc(Ql_strlen(g_cfg->serverHost));
         Ql_strncpy(serverHost,g_cfg->serverHost,Ql_strlen(g_cfg->serverHost));
+
         APP_DEBUG("i worked up till here 1 %s\r\n", g_cfg->serverHost);
-        saveBytesToFlash("serverHost.txt",serverHost,Ql_strlen(serverHost));
+        saveBytesToFlash("serverHost.txt",g_cfg->serverHost,Ql_strlen(g_cfg->serverHost));
 
         char* myApn = Ql_MEM_Alloc(Ql_strlen(g_cfg->apn));
         Ql_strncpy(myApn,g_cfg->apn,Ql_strlen(g_cfg->apn));
         APP_DEBUG("i worked up till here 2 %s\r\n", g_cfg->apn);
-        saveBytesToFlash("apn.txt",myApn,Ql_strlen(myApn));
+        saveBytesToFlash("apn.txt",g_cfg->apn,Ql_strlen(g_cfg->apn));
 
         char* myApnUser = Ql_MEM_Alloc(Ql_strlen(g_cfg->apnUser));
         Ql_strncpy(myApnUser,g_cfg->apnUser,Ql_strlen(g_cfg->apnUser));
-        saveBytesToFlash("apnUser.txt",myApnUser,Ql_strlen(myApnUser));
+        saveBytesToFlash("apnUser.txt",g_cfg->apnUser,Ql_strlen(g_cfg->apnUser));
 
         char* myApnPass = Ql_MEM_Alloc(Ql_strlen(g_cfg->apnPass));
         Ql_strncpy(myApnPass,g_cfg->apnPass,Ql_strlen(g_cfg->apnPass));
-        saveBytesToFlash("apnPass.txt",myApnPass,Ql_strlen(myApnPass));
+        saveBytesToFlash("apnPass.txt",g_cfg->apnPass,Ql_strlen(g_cfg->apnPass));
 
         char serverPort[2] = {0};
         serverPort[0] = g_cfg->serverPort >> 8;
@@ -1215,6 +1253,7 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         if (g_cfg->runMode == 1) {
             g_cfg->mqtt_state =  STATE_NW_QUERY_STATE; // set mqtt to restart
             sms_reply(sender, "NCFTrack: GPRS OK, MQTT auth/connecting");
+            Ql_Reset(0);
         } else {
             sms_reply(sender, "NCFTrack: Settings saved, RUN=0 (not connecting)");
         }
@@ -1338,6 +1377,9 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     else if (Ql_strcmp(commandHead, "HEARTBEAT") == 0) {
         handle_heartbeat_command(smsSender, bodyUpper, g_cfg);
     }  
+    if (Ql_strcmp(commandHead, "IMEI") == 0 || Ql_strcmp(commandHead, "imei") == 0) {
+        handle_setImei(smsSender, bodyUpper, g_cfg);
+    } 
     else {
         char bodyUpper2[160];
         Ql_strcpy(bodyUpper2, bodyUpper);
@@ -1417,7 +1459,7 @@ s32 saveBytesToFlash(char* fileName,char* data,u32 length){
     char dataToSave[length + 1];
     Ql_memset(dataToSave,0,Ql_strlen(dataToSave));
     Ql_memcpy(dataToSave,data,length);
-    dataToSave[length + 1] = '/0';
+    dataToSave[length] = '\0';
     s32 resp = Ql_FS_Write(fileHandle,dataToSave,(length + 1), &bytesWritten);
     Ql_FS_Close(fileHandle);
     APP_DEBUG("total bytes written %i\r\n", bytesWritten);
@@ -1447,6 +1489,36 @@ s32 readFromFlashString(char* fileName,char* data,u32 length){
     Ql_FS_Close(fileHandle);
     APP_DEBUG("data read = %s total bytes read = %i file handle = %i\r\n",data,numberOfBytesRead,fileHandle);
     return numberOfBytesRead;
+}
+
+
+s32 readAlphabetFromFlash(char* fileName,char* data,u32 length){
+    s32 ret = -1;
+    s32 fileHandle = Ql_FS_Open(fileName, QL_FS_READ_ONLY);
+    int numberOfBytesRead = -1;
+    char byteToRead[100];
+    ret = Ql_FS_Read(fileHandle,byteToRead,100,&numberOfBytesRead);
+    cleanAlpha(byteToRead,data);
+    Ql_FS_Close(fileHandle);
+    APP_DEBUG("data read = %s total bytes read = %i file handle = %i\r\n",data,numberOfBytesRead,fileHandle);
+    return numberOfBytesRead;
+}
+
+
+
+void cleanAlpha(char *input, char *output) {
+    int i, j = 0;
+    for (i = 0; input[i] != '\0'; i++) {
+        char c = input[i];
+
+        // keep letters, digits, and dot
+        if ((c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            (c == '.')) {
+            output[j++] = c;
+        }
+    }
+    output[j] = '\0';  // terminate string
 }
 
 

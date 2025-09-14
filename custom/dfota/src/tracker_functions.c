@@ -61,9 +61,10 @@ int get_gsm_signal_strength(DeviceConfig *g_cfg) {
     return rssi_dBm;
 }
 
-int get_battery_percentage(DeviceConfig *g_cfg){
+float get_battery_percentage(DeviceConfig *g_cfg){
     Enum_PinName adcPin = PIN_ADC0;
     u32 adcValue = 0;
+    float vBat = 0;
     s32 ret;
 
     // Init ADC
@@ -73,14 +74,15 @@ int get_battery_percentage(DeviceConfig *g_cfg){
     ret = Ql_ADC_Read(adcPin, &adcValue);
     if (ret == QL_RET_OK) {
         float vAdc = (adcValue * 2.8f) / 1023.0f;
-        float vBat = vAdc * ((100.0f + 47.0f) / 47.0f); // Example R1=100k, R2=47k
+        vBat = vAdc * ((10.0f + 10.0f) / 10.0f); // Example R1=10k, R2=10k
         APP_DEBUG("ADC=%d, Vadc=%.3f V, Vbat=%.3f V\r\n", adcValue, vAdc, vBat);
 
     } else {
         APP_DEBUG("ADC Read failed\r\n");
     }
     Ql_ADC_Close(adcPin);
-    return (int)adcValue;
+    g_cfg->batteryLevel = vBat;
+    return vBat;
 }
 
 int get_external_power_status(DeviceConfig *g_cfg){

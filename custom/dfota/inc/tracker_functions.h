@@ -6,7 +6,7 @@
 #include "data_types.h"
 
 int get_gsm_signal_strength(DeviceConfig *g_cfg);
-int get_battery_percentage(DeviceConfig *g_cfg);
+float get_battery_percentage(DeviceConfig *g_cfg);
 int get_external_power_status(DeviceConfig *g_cfg);
 int get_ignition_status(DeviceConfig *g_cfg);
 int get_last_known_location(double* lat, double* lon);

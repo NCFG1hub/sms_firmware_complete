@@ -33,6 +33,7 @@ typedef enum{
 } MQTT_STATE_T;
 
 
+
 typedef enum{
 	STATE_GNSS_POWERON,
     STATE_GNSS_QUERY_STATE,
@@ -44,6 +45,8 @@ typedef enum{
 	STATE_GNSS_READ_ALL_NMEA,
     STATE_GNSS_TOTAL_NUM
 }Enum_GNSS_STATE;
+
+
 
 
 /* === Main device configuration === */
@@ -116,6 +119,11 @@ typedef struct {
     u8 isGnssDataInjected;
     u8 isFixedGnssPosition;
     u8 isGnssRead;
+    double longitude;
+    double latitude;
+    double speed;
+    float batteryLevel;
+    u8 trip;
 } DeviceConfig;
 
 
@@ -130,6 +138,18 @@ typedef struct {
 } myCellInfo;
 
 
+typedef struct{
+    double utcTime;
+    char status;
+    double latitude;
+    char latDirection;
+    double longitude;
+    char longDirection;
+    double speed;
+    float courseOverGround; 
+    u32 deviceDate;
+    float magneticVariation;
+} GPS_LOCATION_T;
 
 typedef enum {
     DISCONNECTED,
