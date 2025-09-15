@@ -1253,7 +1253,6 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         if (g_cfg->runMode == 1) {
             g_cfg->mqtt_state =  STATE_NW_QUERY_STATE; // set mqtt to restart
             sms_reply(sender, "NCFTrack: GPRS OK, MQTT auth/connecting");
-            Ql_Reset(0);
         } else {
             sms_reply(sender, "NCFTrack: Settings saved, RUN=0 (not connecting)");
         }

@@ -85,7 +85,7 @@ static s32 isPdpContextGotten = 0;
 
 
 #define PIN_TIMER_ID         0x210
-#define PIN_TIMER_PERIOD     1000
+#define PIN_TIMER_PERIOD     5000
 
 
 #define PI 3.14159265358979323846
@@ -249,6 +249,9 @@ u16 iscommandData = 0;
 
 u16 countPublishFailure = 0;
 u16 countFailureConnect = 0;
+
+u16 countFaileSubscribe = 0;
+u16 countLoginFailure = 0;
 
 /*****************************************************************
 * Other global variable
@@ -547,7 +550,7 @@ void proc_main_task(s32 taskId)
             					if(0 == mqtt_urc_param_ptr->result)
             					{
                  					APP_DEBUG("//<Open a MQTT client successfully\r\n");
-                                    //m_mqtt_state = STATE_MQTT_CONN;
+                                    m_mqtt_state = STATE_MQTT_CONN;
             					}
             					else
             					{
@@ -560,8 +563,8 @@ void proc_main_task(s32 taskId)
             					mqtt_urc_param_ptr = msg.param2;
             					if(0 == mqtt_urc_param_ptr->result)
             					{
-                    		        APP_DEBUG("//<Connect to MQTT server successfully\r\n");
-            						//m_mqtt_state = STATE_MQTT_SUB;
+                    		        APP_DEBUG("//<logged in server successfully\r\n");
+            						m_mqtt_state = STATE_MQTT_SUB;
             					}
             					else
             					{
@@ -575,11 +578,12 @@ void proc_main_task(s32 taskId)
             					if((0 == mqtt_urc_param_ptr->result)&&(128 != mqtt_urc_param_ptr->sub_value[0]))
             					{
                     		        APP_DEBUG("//<Subscribe topics successfully\r\n");
-            						//m_mqtt_state = STATE_MQTT_PUB;
+            						m_mqtt_state = STATE_MQTT_PUB;
             					}
             					else
             					{
             						APP_DEBUG("//<Subscribe topics failure,error = %d\r\n",mqtt_urc_param_ptr->result);
+                                    m_mqtt_state = STATE_MQTT_CONN;
             					}
                 		    }
             			    break;
@@ -593,6 +597,10 @@ void proc_main_task(s32 taskId)
             					else
             					{
             						APP_DEBUG("//<Publish messages to MQTT server failure,error = %d\r\n",mqtt_urc_param_ptr->result);
+                                    if(countPublishFailure > 10){
+                                        countPublishFailure = 0;
+                                        m_mqtt_state = STATE_MQTT_CONN;
+                                    }
             					}
                 		    }
             			    break;
@@ -907,7 +915,7 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
                                 "\"magneticVariation\":%2f,"
                                 "\"battery\":%f,"
                                 "\"trip\":%d,"
-                                "\"external\":%d",
+                                "\"external\":%d,"
                                 "\"ordor\":%d"
                             "}",
                             devConfig.imei,
@@ -940,6 +948,10 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
     
     if(MQTT_TIMER_ID == timerId)
     {
+        if(devConfig.mqtt_state =  STATE_NW_QUERY_STATE){
+            m_mqtt_state = STATE_NW_QUERY_STATE;
+            devConfig.mqtt_state = STATE_MQTT_CFG;
+        }
         switch(m_mqtt_state)
         {        
             case STATE_NW_QUERY_STATE:
@@ -948,6 +960,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 APP_DEBUG("run mode is %d --\r\n",devConfig.runMode);
                 if(devConfig.runMode != 1){
                     APP_DEBUG("run mode is zero exiting connection --\r\n");
+                    break;
                 }
                 ret = RIL_NW_GetGPRSState(&cgreg);
                 APP_DEBUG("//<Network State:cgreg = %d\r\n",cgreg);
@@ -990,6 +1003,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
             }
 			case STATE_MQTT_OPEN:
             {
+                
                 APP_DEBUG("opening mqtt server = %s, port = %d\r\n",devConfig.serverHost,devConfig.serverPort);
                 ret = RIL_MQTT_QMTOPEN(connect_id,devConfig.serverHost,devConfig.serverPort);
                 if(RIL_AT_SUCCESS == ret)
@@ -997,19 +1011,11 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     APP_DEBUG("//<Start opening a MQTT client\r\n");
                     if(FALSE == CLOSE_flag)
                         CLOSE_flag = TRUE;
-                    m_mqtt_state = STATE_MQTT_CONN;
+                    m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
                 {
                     APP_DEBUG("//<Open a MQTT client failure,ret = %d-->\r\n",ret);
-                    countFailureConnect = countFailureConnect + 1;
-                    if(countFailureConnect >= 10){
-                        countFailureConnect = 0;
-                        m_mqtt_state = STATE_NW_QUERY_STATE;
-                    }
-                    else{
-                        m_mqtt_state = STATE_MQTT_OPEN;
-                    }
                     
                 }
                 break;
@@ -1020,15 +1026,14 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 ret = RIL_MQTT_QMTCONN(connect_id,devConfig.clientId,username,devConfig.imei);
 	            if(RIL_AT_SUCCESS == ret)
                 {
-                    APP_DEBUG("//<Start connect to MQTT server\r\n");
+                    APP_DEBUG("//<login in to mqtt serverr\n");
                     if(FALSE == DISC_flag)
                         DISC_flag = TRUE;
-                    m_mqtt_state = STATE_MQTT_SUB;
+                    m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
                 {
-                    APP_DEBUG("//<connect to MQTT server failure,ret = %d\r\n",ret);
-                    m_mqtt_state = STATE_MQTT_OPEN;
+                    APP_DEBUG("//<failed to login = %d\r\n",ret);
                 }
                 break;
             }
@@ -1049,59 +1054,72 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 if(RIL_AT_SUCCESS == ret)
                 {
                     APP_DEBUG("//<Start subscribe topic\r\n");
-                    m_mqtt_state = STATE_MQTT_PUB;
+                    m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
                 {
                     APP_DEBUG("//<Subscribe topic failure,ret = %d\r\n",ret);
-                    m_mqtt_state = STATE_MQTT_OPEN;
+                    
                 }
                 break;
             }
             case STATE_MQTT_PUB:
             {
 				pub_message_id++;  //< The range is 0-65535. It will be 0 only when<qos>=0.
+
+                u8 wasAnyPublish = 0; // checks if there was a publish
                 
                 if(isDeviceData == 1){
                      if( (Ql_GetMsSincePwrOn() - lastLocationPush) >= (devConfig.rptSec * 1000) ){
                           ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceData),deviceData);
+                          wasAnyPublish = 1;
                      }
                 }
 
 
                 if(isDeviceAlarm == 1){
                      ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceAlarm),deviceAlarm);
+                     wasAnyPublish = 1;
                 }
 
                 if(iscommandData == 1){
 				     ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(commandData),commandData);
+                     wasAnyPublish = 1;
                 }
 
-                if(RIL_AT_SUCCESS == ret)
-                {
-                    APP_DEBUG("//<Start publish a message to MQTT server\r\n");
-                    m_mqtt_state = STATE_MQTT_PUB;
+                if(wasAnyPublish == 1){
+                    if(RIL_AT_SUCCESS == ret )
+                    {
+                        APP_DEBUG("//<Start publish a message to MQTT server\r\n");
+                        m_mqtt_state = STATE_MQTT_PUB;
 
-                    if(isDeviceData == 1){
-                        lastLocationPush = Ql_GetMsSincePwrOn();
-                        isDeviceData = 0;
+                        if(isDeviceData == 1){
+                            lastLocationPush = Ql_GetMsSincePwrOn();
+                            isDeviceData = 0;
+                        }
+                        
+                        if(iscommandData == 1)
+                        iscommandData = 0;
+
+                        if(isDeviceAlarm == 1)
+                        isDeviceAlarm = 0;
                     }
-                       
-                    if(iscommandData == 1)
-                       iscommandData = 0;
-
-                    if(isDeviceAlarm == 1)
-                       isDeviceAlarm = 0;
-                }
-                else
-                {
-                    APP_DEBUG("//<Publish a message to MQTT server failure,ret = %d\r\n",ret);
-                    countPublishFailure = countPublishFailure + 1;
-                    if(countPublishFailure >= 10){
-                        m_mqtt_state = STATE_MQTT_OPEN;
-                        countPublishFailure = 0;
+                    else
+                    {
+                        APP_DEBUG("//<Publish a message to MQTT server failure,ret = %d\r\n",ret);
+                        countPublishFailure = countPublishFailure + 1;
+                        if(countPublishFailure >= 10){
+                            RIL_MQTT_QMTCLOSE(connect_id);
+                            m_mqtt_state = STATE_MQTT_OPEN;
+                            countPublishFailure = 0;
+                        }
                     }
                 }
+                else{
+                    APP_DEBUG("//<no publishh yet \r\n");
+                }
+
+                
                 break;
             }
 			case STATE_MQTT_TOTAL_NUM:
@@ -1326,7 +1344,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                 "\"magneticVariation\":%2f,"
                                 "\"battery\":%f,"
                                 "\"trip\":%d,"
-                                "\"external\":%d",
+                                "\"external\":%d,"
                                 "\"ordor\":%d"
                             "}",
                             devConfig.imei,
@@ -1367,7 +1385,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                     "\"magneticVariation\":%2f,"
                                     "\"battery\":%f,"
                                     "\"trip\":%d,"
-                                    "\"external\":%d",
+                                    "\"external\":%d,"
                                     "\"ordor\":%d"
                                 "}",
                                 devConfig.imei,
@@ -1410,7 +1428,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                 "\"magneticVariation\":%2f,"
                                 "\"battery\":%f,"
                                 "\"trip\":%d,"
-                                "\"external\":%d",
+                                "\"external\":%d,"
                                 "\"ordor\":%d"
                             "}",
                             devConfig.imei,
