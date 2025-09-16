@@ -164,7 +164,7 @@ static s32 AT_CELL_INFO_HANDLER(char* line, u32 len, void* userdata);
 
 double calculateDistance(double lat1, double lon1, double lat2, double lon2);
 static double toRadians(double deg);
-
+double convertNmeaToDecimal(double nmea, char direction);
 /***********************************************************************
  * GLOBAL DATA DEFINITIONS
 ************************************************************************/
@@ -239,6 +239,7 @@ static ST_CellInfo g_cell;
 
 
 static u8 m_mqtt_state = STATE_NW_QUERY_STATE;
+static u8 last_m_mqtt_state = STATE_NW_QUERY_STATE;
 
 char deviceData[1024];
 char commandData[1024];
@@ -248,11 +249,8 @@ u16 isDeviceAlarm = 0;
 u16 iscommandData = 0;
 
 u16 countPublishFailure = 0;
-u16 countFailureConnect = 0;
-
-u16 countFaileSubscribe = 0;
-u16 countLoginFailure = 0;
-
+u16 countMqttResponseWaitTime = 0;
+bool isConnectionOpen = FALSE;
 /*****************************************************************
 * Other global variable
 ******************************************************************/
@@ -467,6 +465,8 @@ void proc_main_task(s32 taskId)
                 APP_DEBUG("//<RIL is ready\r\n");
                 Ql_RIL_Initialize();
                 loadConfig();
+                if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                    last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                 m_mqtt_state = STATE_NW_QUERY_STATE;
                 break;
     		case MSG_ID_URC_INDICATION:
@@ -550,7 +550,10 @@ void proc_main_task(s32 taskId)
             					if(0 == mqtt_urc_param_ptr->result)
             					{
                  					APP_DEBUG("//<Open a MQTT client successfully\r\n");
+                                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                                         last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                                     m_mqtt_state = STATE_MQTT_CONN;
+                                    isConnectionOpen = TRUE;
             					}
             					else
             					{
@@ -564,6 +567,8 @@ void proc_main_task(s32 taskId)
             					if(0 == mqtt_urc_param_ptr->result)
             					{
                     		        APP_DEBUG("//<logged in server successfully\r\n");
+                                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                                         last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
             						m_mqtt_state = STATE_MQTT_SUB;
             					}
             					else
@@ -578,11 +583,15 @@ void proc_main_task(s32 taskId)
             					if((0 == mqtt_urc_param_ptr->result)&&(128 != mqtt_urc_param_ptr->sub_value[0]))
             					{
                     		        APP_DEBUG("//<Subscribe topics successfully\r\n");
+                                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                                         last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
             						m_mqtt_state = STATE_MQTT_PUB;
             					}
             					else
             					{
             						APP_DEBUG("//<Subscribe topics failure,error = %d\r\n",mqtt_urc_param_ptr->result);
+                                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                                         last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                                     m_mqtt_state = STATE_MQTT_CONN;
             					}
                 		    }
@@ -599,6 +608,8 @@ void proc_main_task(s32 taskId)
             						APP_DEBUG("//<Publish messages to MQTT server failure,error = %d\r\n",mqtt_urc_param_ptr->result);
                                     if(countPublishFailure > 10){
                                         countPublishFailure = 0;
+                                        if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                                             last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                                         m_mqtt_state = STATE_MQTT_CONN;
                                     }
             					}
@@ -610,6 +621,7 @@ void proc_main_task(s32 taskId)
             					if(0 == mqtt_urc_param_ptr->result)
             					{
                     		        APP_DEBUG("//<Closed MQTT socket successfully\r\n");
+                                    isConnectionOpen = FALSE;
             					}
             					else
             					{
@@ -959,6 +971,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 s32 cgreg = 0;
                 APP_DEBUG("run mode is %d --\r\n",devConfig.runMode);
                 if(devConfig.runMode != 1){
+                    if(isConnectionOpen == TRUE)
+                          RIL_MQTT_QMTCLOSE(connect_id);
                     APP_DEBUG("run mode is zero exiting connection --\r\n");
                     break;
                 }
@@ -978,6 +992,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     if(ret == RIL_AT_SUCCESS)
                 	{
                 	    APP_DEBUG("//<Activate PDP context,ret = %d\r\n",ret);
+                        if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                            last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                 	    m_mqtt_state = STATE_MQTT_CFG;
                 	}
                 }
@@ -992,6 +1008,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 {
                     //APP_DEBUG("//<Ali Platform configure successfully\r\n");
                     APP_DEBUG("//<Select version 3.1.1 successfully\r\n");
+                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                        last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                     m_mqtt_state = STATE_MQTT_OPEN;
                 }
                 else
@@ -1011,6 +1029,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     APP_DEBUG("//<Start opening a MQTT client\r\n");
                     if(FALSE == CLOSE_flag)
                         CLOSE_flag = TRUE;
+                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                        last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                     m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
@@ -1029,6 +1049,9 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     APP_DEBUG("//<login in to mqtt serverr\n");
                     if(FALSE == DISC_flag)
                         DISC_flag = TRUE;
+                    
+                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                        last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                     m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
@@ -1054,6 +1077,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 if(RIL_AT_SUCCESS == ret)
                 {
                     APP_DEBUG("//<Start subscribe topic\r\n");
+                    if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                        last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                     m_mqtt_state = STATE_MQTT_TOTAL_NUM;
                 }
                 else
@@ -1092,6 +1117,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     {
                         APP_DEBUG("//<Start publish a message to MQTT server\r\n");
                         m_mqtt_state = STATE_MQTT_PUB;
+                        if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
+                            last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
 
                         if(isDeviceData == 1){
                             lastLocationPush = Ql_GetMsSincePwrOn();
@@ -1126,6 +1153,11 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
             {
                 //<do nothing
                 APP_DEBUG("//mqtt doing nothing\r\n");
+                countMqttResponseWaitTime = countMqttResponseWaitTime + 1;
+                if(countMqttResponseWaitTime > 150){
+                    countMqttResponseWaitTime = 0;
+                    m_mqtt_state = last_m_mqtt_state;
+                }
 			    break;
             }
             default:
@@ -2370,7 +2402,7 @@ void loadConfig(){
     APP_DEBUG("heart beat min = %i total bytes read = %i file handle = %i\r\n",devConfig.timezoneOffset,numberOfBytesRead,fileHandle);
 
 
-    char users[MAX_USERS * 15] = {0};
+    char users[MAX_USERS * 25] = {0};
     numberOfBytesRead = readFromFlashString("user.txt",users,(MAX_USERS * 15));
     Ql_strcpy(devConfig.users,users);
 
@@ -2504,6 +2536,19 @@ u32 HexStringToInt(const char* hexStr)
     return result;
 }
 
+
+
+double convertNmeaToDecimal(double nmea, char direction) {
+    int degrees = (int)(nmea / 100);              // take first part as degrees
+    double minutes = nmea - (degrees * 100);      // remaining is minutes
+    double decimal = degrees + (minutes / 60.0);  // convert to decimal degrees
+
+    // Apply hemisphere
+    if (direction == 'S' || direction == 'W') {
+        decimal = -decimal;
+    }
+    return decimal;
+}
 
 
 static void decodeCellInfo2(char* cellRawData, ST_CellInfo* mainCellInfo){
@@ -2672,4 +2717,10 @@ static void decode_gps_data(char* gpsData,GPS_LOCATION_T* decodedGps){
         decodedGps->magneticVariation = Ql_atof(rawMagneticVariation);
         rawMagneticVariation = rawMagneticVariation + Ql_strlen(rawMagneticVariation) + 1;
     }
+    
+    if(decodedGps->latDirection)
+        decodedGps->latitude =  convertNmeaToDecimal(decodedGps->latitude,decodedGps->latDirection);
+    
+    if(decodedGps->longDirection)
+         decodedGps->longitude =  convertNmeaToDecimal(decodedGps->longitude,decodedGps->longDirection);
 }

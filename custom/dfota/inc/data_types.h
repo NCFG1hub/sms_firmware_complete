@@ -90,7 +90,7 @@ typedef struct {
 
     /* === Registered users === */
     u8    userCount;
-    char users[MAX_USERS * 15];
+    char users[MAX_USERS * 25];
     int  timezoneOffset;     // Timezone offset from GMT
     char  mqttUser[MAX_MQTT_USER];
     char  mqttPass[MAX_MQTT_PASS];

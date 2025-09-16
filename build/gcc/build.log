@@ -304,40 +304,40 @@ include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
 custom/main.c:2421: warning: pointer targets in passing argument 2 of 'Ql_FS_Read' differ in signedness
 include/ql_fs.h:182: note: expected 'u8 *' but argument is of type 'char *'
 custom/main.c: In function 'decodeCellInfo2':
-custom/main.c:2509: warning: declaration of 'mainCellInfo' shadows a global declaration
+custom/main.c:2522: warning: declaration of 'mainCellInfo' shadows a global declaration
 custom/main.c:288: warning: shadowed declaration is here
-custom/main.c:2512: warning: initialization makes pointer from integer without a cast
-custom/main.c:2518: warning: initialization makes pointer from integer without a cast
 custom/main.c:2525: warning: initialization makes pointer from integer without a cast
 custom/main.c:2531: warning: initialization makes pointer from integer without a cast
 custom/main.c:2538: warning: initialization makes pointer from integer without a cast
-custom/main.c:2541: warning: initialization makes pointer from integer without a cast
-custom/main.c:2545: warning: initialization makes pointer from integer without a cast
+custom/main.c:2544: warning: initialization makes pointer from integer without a cast
 custom/main.c:2551: warning: initialization makes pointer from integer without a cast
-custom/main.c: In function 'decodeCellInfo':
-custom/main.c:2559: warning: declaration of 'mainCellInfo' shadows a global declaration
-custom/main.c:288: warning: shadowed declaration is here
-custom/main.c:2561: warning: initialization makes pointer from integer without a cast
+custom/main.c:2554: warning: initialization makes pointer from integer without a cast
+custom/main.c:2558: warning: initialization makes pointer from integer without a cast
 custom/main.c:2564: warning: initialization makes pointer from integer without a cast
-custom/main.c:2568: warning: initialization makes pointer from integer without a cast
-custom/main.c:2572: warning: initialization makes pointer from integer without a cast
-custom/main.c:2576: warning: initialization makes pointer from integer without a cast
-custom/main.c:2580: warning: initialization makes pointer from integer without a cast
-custom/main.c:2583: warning: initialization makes pointer from integer without a cast
-custom/main.c:2587: warning: initialization makes pointer from integer without a cast
-custom/main.c:2591: warning: initialization makes pointer from integer without a cast
+custom/main.c: In function 'decodeCellInfo':
+custom/main.c:2572: warning: declaration of 'mainCellInfo' shadows a global declaration
+custom/main.c:288: warning: shadowed declaration is here
+custom/main.c:2574: warning: initialization makes pointer from integer without a cast
+custom/main.c:2577: warning: initialization makes pointer from integer without a cast
+custom/main.c:2581: warning: initialization makes pointer from integer without a cast
+custom/main.c:2585: warning: initialization makes pointer from integer without a cast
+custom/main.c:2589: warning: initialization makes pointer from integer without a cast
+custom/main.c:2593: warning: initialization makes pointer from integer without a cast
+custom/main.c:2596: warning: initialization makes pointer from integer without a cast
+custom/main.c:2600: warning: initialization makes pointer from integer without a cast
+custom/main.c:2604: warning: initialization makes pointer from integer without a cast
 custom/main.c: In function 'decode_gps_data':
-custom/main.c:2603: warning: initialization makes pointer from integer without a cast
-custom/main.c:2606: warning: initialization makes pointer from integer without a cast
-custom/main.c:2613: warning: initialization makes pointer from integer without a cast
-custom/main.c:2620: warning: initialization makes pointer from integer without a cast
-custom/main.c:2627: warning: initialization makes pointer from integer without a cast
-custom/main.c:2634: warning: initialization makes pointer from integer without a cast
-custom/main.c:2641: warning: initialization makes pointer from integer without a cast
-custom/main.c:2648: warning: initialization makes pointer from integer without a cast
-custom/main.c:2655: warning: initialization makes pointer from integer without a cast
-custom/main.c:2662: warning: initialization makes pointer from integer without a cast
-custom/main.c:2670: warning: initialization makes pointer from integer without a cast
+custom/main.c:2616: warning: initialization makes pointer from integer without a cast
+custom/main.c:2619: warning: initialization makes pointer from integer without a cast
+custom/main.c:2626: warning: initialization makes pointer from integer without a cast
+custom/main.c:2633: warning: initialization makes pointer from integer without a cast
+custom/main.c:2640: warning: initialization makes pointer from integer without a cast
+custom/main.c:2647: warning: initialization makes pointer from integer without a cast
+custom/main.c:2654: warning: initialization makes pointer from integer without a cast
+custom/main.c:2661: warning: initialization makes pointer from integer without a cast
+custom/main.c:2668: warning: initialization makes pointer from integer without a cast
+custom/main.c:2675: warning: initialization makes pointer from integer without a cast
+custom/main.c:2683: warning: initialization makes pointer from integer without a cast
 custom/main.c: At top level:
 custom/dfota/inc/sms_command.h:8: warning: 'handle_www_command' declared 'static' but never defined
 custom/dfota/inc/sms_command.h:9: warning: 'handle_heartbeat_command' declared 'static' but never defined
@@ -371,8 +371,8 @@ custom/dfota/inc/sms_command.h:36: warning: 'handle_adduser_command' declared 's
 custom/dfota/inc/sms_command.h:37: warning: 'handle_add_command' declared 'static' but never defined
 custom/dfota/inc/sms_command.h:38: warning: 'is_authorized' declared 'static' but never defined
 custom/main.c:75: warning: 'isPdpContextGotten' defined but not used
-custom/main.c:2559: warning: 'decodeCellInfo' defined but not used
-custom/main.c:2509: warning: 'decodeCellInfo2' defined but not used
+custom/main.c:2572: warning: 'decodeCellInfo' defined but not used
+custom/main.c:2522: warning: 'decodeCellInfo2' defined but not used
 custom/main.c:396: warning: 'AT_CELL_LOCATION_HANDLER' defined but not used
 custom/main.c:354: warning: 'AT_CELL_INFO_HANDLER' defined but not used
 custom/main.c:173: warning: 'countFailedPublish' defined but not used

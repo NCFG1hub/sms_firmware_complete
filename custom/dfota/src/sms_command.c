@@ -45,79 +45,122 @@ void sms_reply(const char* destNumber, const char* message) {
 
 
 static bool is_authorized(const char* number, DeviceConfig *g_cfg) {
-    if (g_cfg->allowPublic) return TRUE;
+    bool myStatus = false;
+    if (g_cfg->allowPublic) 
+        return TRUE;
 
     char* splitedUsers = my_strtok(g_cfg->users,",");
-
+    char* nextUser;
     /* === Check If Already Registered === */
     for (u8 i = 0; i < g_cfg->userCount; i++) {
         char* nextUser = my_strtok(splitedUsers,",");
-        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
+        APP_DEBUG("SEEN user %s\r\n",nextUser);
         if (Ql_strcmp(nextUser, number) == 0) {
+            myStatus = TRUE;
             return TRUE;
         }
+        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
     }
 
-    return TRUE;
+    return myStatus;
 }
 
 /* === Handle ADD command (Change Device Password) === */
 static void handle_add_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    const char* newPass = body + 4; // skip "ADD,"
-    while (*newPass == ' ') newPass++; // skip spaces
 
-    u32 len = Ql_strlen(newPass);
-    if (len < 4 || len > 20) {
-        sms_reply(sender, "Failed (password length must be 4-20 chars)");
-        return;
+    char savedPassword[25];
+    u32 bytesRead = 0;
+    readFromFlashString("pwd.txt",savedPassword,bytesRead);
+    savedPassword[bytesRead] = "\0";
+
+    if(!savedPassword){ // if no password was saved, assume that the password is all zero
+         APP_DEBUG("there is no saved password ");
+         Ql_strcpy(savedPassword,"000000\0",Ql_strlen("000000\0"));
     }
 
+    char receivedOldPassword[25];
+    char receivedNewPassword[25];
+    
+    char* rawSmsData = my_strtok(body,",");
+    rawSmsData = rawSmsData + Ql_strlen(rawSmsData) + 1; // advance the pointer to read the old password
+    char* readOldPassword = my_strtok(rawSmsData,",");
+    Ql_strncpy(receivedOldPassword,readOldPassword,Ql_strlen(readOldPassword)); // save the old password in an array
+
+    rawSmsData = readOldPassword + Ql_strlen(readOldPassword) + 1; // advance the pointer to read the new password
+    char* readNewPassword = my_strtok(rawSmsData,",");
+    Ql_strncpy(receivedNewPassword,readNewPassword,Ql_strlen(readNewPassword)); // save the new password in an array
+
+    APP_DEBUG("saved password = %s,  old password = %s, new password = %s\r\n",savedPassword,receivedOldPassword,receivedNewPassword);
+
+
+
+
     /* === Check it's Alphanumeric Only === */
-    for (u32 i = 0; i < len; i++) {
-        if (!( (newPass[i] >= '0' && newPass[i] <= '9') ||
-               (newPass[i] >= 'A' && newPass[i] <= 'Z') ||
-               (newPass[i] >= 'a' && newPass[i] <= 'z') )) {
+    for (u32 i = 0; i < Ql_strlen(receivedNewPassword); i++) {
+        if (!( (receivedNewPassword[i] >= '0' && receivedNewPassword[i] <= '9') ||
+               (receivedNewPassword[i] >= 'A' && receivedNewPassword[i] <= 'Z') ||
+               (receivedNewPassword[i] >= 'a' && receivedNewPassword[i] <= 'z') )) {
             sms_reply(sender, "Failed (password must be letters/numbers only)");
             return;
         }
     }
 
-    char* myNewPass = Ql_MEM_Alloc(len); // assign memory to hold the password
-
-    Ql_strcpy(myNewPass, newPass);
-    if (saveBytesToFlash("pwd.txt",myNewPass,len) == 0) {
-        Ql_strcpy(g_cfg->password,myNewPass);
-        char successMsg[100];
-        Ql_sprintf(successMsg, "Password changed to %s", newPass);
-        sms_reply(sender, successMsg);
-    } else {
-        sms_reply(sender, "Failed to save password");
+    if(Ql_strcmp(receivedOldPassword,savedPassword) == 0){
+            if (saveBytesToFlash("pwd.txt",receivedNewPassword,Ql_strlen(receivedNewPassword)) == 0) {
+                Ql_strcpy(g_cfg->password,receivedNewPassword);
+                char successMsg[100];
+                Ql_sprintf(successMsg, "Password changed to %s", newPass);
+                sms_reply(sender, successMsg);
+            } else {
+                sms_reply(sender, "Failed to save password");
+            }
+    }
+    else{
+        sms_reply(sender, "Invalid password");
     }
 }
 
+
+
 /* === Handle Add User SMS Command === */
 static void handle_adduser_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    const char* numPtr;
-    if (Ql_strncmp(body, "ADDUSER,", 8) == 0 || Ql_strncmp(body, "AddUser,", 8) == 0)
-        numPtr = body + 8;
-    else
-        numPtr = body + 3; // "AU,"
 
-    while (*numPtr == ' ') numPtr++; // skip spaces
+    char users[500];
+    u32 bytesRead = 0;
+    readFromFlashString("user.txt",g_cfg->users,bytesRead);
+    saveBytesToFlash("userCount.txt",g_cfg->userCount,2);
 
-    u32 len = Ql_strlen(numPtr);
+    APP_DEBUG("saved users = %s,  total users = %d\r\n",g_cfg->users,g_cfg->userCount);
+
+    char* rawUserData = my_strtok(body,","); 
+    rawUserData = rawUserData + Ql_strlen(rawUserData) + 1;
+
+    char* myUserToAdd = my_strtok(rawUserData,","); 
+
+    char formatedUser[25];
+    int j = 0; // index for the user
+    for(int i=0;i<Ql_strlen(myUserToAdd);++i){ // remove space from the number
+        if(myUserToAdd[i] != ' '){
+            formatedUser[j] = myUserToAdd[i];
+            j = j + 1;
+        }
+    }
+    formatedUser[j] = '\0'; // add end of character null
+
+
+    u32 len = Ql_strlen(formatedUser);
     if (len < 7 || len > 20) {
         sms_reply(sender, "Failed (invalid phone number length)");
         return;
     }
 
     /* === Check Digits And '+' Sign At The Start === */
-    if (numPtr[0] != '+' && (numPtr[0] < '0' || numPtr[0] > '9')) {
+    if (formatedUser[0] != '+' && (formatedUser[0] < '0' || formatedUser[0] > '9')) {
         sms_reply(sender, "Failed (invalid phone number format)");
         return;
     }
     for (u32 i = 1; i < len; i++) {
-        if (numPtr[i] < '0' || numPtr[i] > '9') {
+        if (formatedUser[i] < '0' || formatedUser[i] > '9') {
             sms_reply(sender, "Failed (phone number must be digits only)");
             return;
         }
@@ -130,11 +173,11 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
     /* === Check If Already Registered === */
     for (u8 i = 0; i < g_cfg->userCount; i++) {
         char* nextUser = my_strtok(splitedUsers,",");
-        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
-        if (Ql_strcmp(nextUser, numPtr) == 0) {
+        if (Ql_strcmp(nextUser, formatedUser) == 0) {
             sms_reply(sender, "Failed (number already exists)");
             return;
         }
+        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
     }
 
     /* === Check User Limit === */
@@ -146,14 +189,14 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
     /* === Add The User If All Is Fine === */
     g_cfg->userCount++;
 
-    char* allNewUser = Ql_MEM_Alloc(Ql_strlen(numPtr) + Ql_strlen(g_cfg->users) + 1);
+    char* allNewUser = Ql_MEM_Alloc(Ql_strlen(formatedUser) + Ql_strlen(g_cfg->formatedUser) + 1);
     Ql_strcat(allNewUser,g_cfg->users);
     Ql_strcat(allNewUser,",");
-    Ql_strcat(allNewUser,numPtr);
+    Ql_strcat(allNewUser,formatedUser);
 
     if (saveBytesToFlash("user.txt",allNewUser,Ql_strlen(allNewUser)) == 0) {
         char msg[80];
-        Ql_sprintf(msg, "User added %s", numPtr);
+        Ql_sprintf(msg, "User added %s", formatedUser);
         saveBytesToFlash("userCount.txt",g_cfg->userCount,2); // update the total number of user saved
         sms_reply(sender, msg);
     } else {
@@ -201,24 +244,22 @@ static void handle_name_command(const char* sender, const char* body, DeviceConf
 
 /* === Handle Allow Public SMS Command === */
 static void handle_allowpublic_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    const char* valPtr;
+    
+    char* rawTextData = my_strtok(body,","); 
+    rawTextData = rawTextData + Ql_strlen(rawTextData) + 1; // move to the next data
+    char* allowPublicData = my_strtok(rawTextData,",");
 
-    if (Ql_strncmp(body, "SET,ALLOWPUBLIC,", 16) == 0 ||
-        Ql_strncmp(body, "Set,AllowPublic,", 16) == 0) {
-        valPtr = body + 16;
-    } else {
-        valPtr = body + 17; // "Set,AllowPubli c," short form handling
-    }
-
-    while (*valPtr == ' ') valPtr++; /* skip spaces */
-
-    if (*valPtr != '0' && *valPtr != '1') {
+    if (allowPublicData[0] != '0' && allowPublicData[0] != '1') {
         sms_reply(sender, "Failed (value must be 0 or 1)");
         return;
     }
 
+    g_cfg->allowPublic = Ql_atoi(allowPublicData);
+
     char allowPublic[1];
-    allowPublic[0] = (*valPtr == '1') ? 1 : 0;
+    allowPublic[0] = g_cfg->allowPublic;
+
+    APP_DEBUG("Allow public received = %d",allowPublic[0]);
 
     if (saveBytesToFlash("allowPublic.txt",allowPublic,1) == 0) {
         char msg[50];
@@ -277,6 +318,8 @@ static void handle_password_command(const char* sender, const char* body, Device
 }
 
 /* === Handle Get Report SMS Command === */  //############## need clarification
+
+/*assigning users with permission to receive report or not to be done on upgrade*/
 static void handle_getreport_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     u8 userIndex;
     char typeChar;
@@ -350,6 +393,9 @@ static void handle_getreport_command(const char* sender, const char* body, Devic
     }
 }
 
+
+
+
 /* === Handle Get Device Password SMS Command === */
 static void handle_password_read_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     // Insure it's exactly "PASSWORD" (case-insensitive) and nothing else
@@ -359,38 +405,80 @@ static void handle_password_read_command(const char* sender, const char* body, D
     }
 
     char msg[60];
-    Ql_sprintf(msg, "Password is %s", g_cfg->password);
+    Ql_sprintf(msg, "Password is %s \r\n", g_cfg->password);
     sms_reply(sender, msg);
 }
 
 /* === Handle All List User SMS Command === */  //######## need clarification here
 static void handle_listuser_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     char arg[20] = {0};
-
-    // Skip LISTUSER, or LU,
-    if (Ql_strncmp(body, "LISTUSER", 8) == 0 || Ql_strncmp(body, "ListUser", 8) == 0) {
-        if (Ql_strlen(body) > 8 && body[8] == ',')
-            Ql_strcpy(arg, body + 9);
-    } else {
-        if (Ql_strlen(body) > 2 && body[2] == ',')
-            Ql_strcpy(arg, body + 3);
+    int userLevel = 0;
+    if(!is_authorized(sender,g_cfg)){
+        sms_reply(sender, "Not authorized");
+        return;
     }
+
+    char* rawData = my_strtok(body,",");
+    rawData = rawData + Ql_strlen(rawData) + 1;
+    char* listType = my_strtok(rawData,",");
+
+    if(!listType){
+        sms_reply(sender, "Invalid command");
+        return;
+    }
+
+    APP_DEBUG(" user list type %s \r\n",listType);
 
     char userlistMessage[300];
-    Ql_strcat(userlistMessage,"NCFTRACK : list user User1: admin");
 
-    char* splitedUsers = my_strtok(g_cfg->users,",");
+    if(Ql_strcmp(listType,"ALL") == 0 || Ql_strcmp(listType,"All") == 0 || Ql_strcmp(listType,"all") == 0){
+            
+            Ql_strcat(userlistMessage,"list user User1: admin");
 
-    /* === Check If Already Registered === */
-    for (u8 i = 0; i < g_cfg->userCount; i++) {
-        char* nextUser = my_strtok(splitedUsers,",");
-        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
-        char myString[50];
-        Ql_sprintf(myString,",User%d:%s",(i+2),nextUser); 
-        Ql_strcat(userlistMessage,myString);
+            char* splitedUsers = my_strtok(g_cfg->users,",");
+
+            /* === Check If Already Registered === */
+            for (u8 i = 0; i < g_cfg->userCount; i++) {
+                char* nextUser = my_strtok(splitedUsers,",");
+                char myString[50];
+                Ql_sprintf(myString,",User%d:%s",(i+2),nextUser); 
+                Ql_strcat(userlistMessage,myString);
+                splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
+            }
+
+            sms_reply(sender, userlistMessage);
+    }
+    else{
+        if(listType[0] >= '0' || listType[0] <= '9'){
+             userLevel = Ql_atoi(listType);
+             if(userLevel == 1){
+                  Ql_strcat(userlistMessage,"list user User1: admin");
+             }
+
+             char* splitedUsers = my_strtok(g_cfg->users,",");
+
+            /* === Check If Already Registered === */
+            for (u8 i = 0; i < g_cfg->userCount; i++) {
+                if(i == (userLevel - 1)){
+                    char* nextUser = my_strtok(splitedUsers,",");
+                    char myString[50];
+                    Ql_sprintf(myString,",User%d:%s",(i+2),nextUser); 
+                    Ql_strcat(userlistMessage,myString);
+                    splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
+                }
+            }
+
+            sms_reply(sender, userlistMessage);
+        }
+        else{
+            sms_reply(sender, "Invalid command");
+            return;
+        }
     }
 
-    sms_reply(sender, userlistMessage);
+
+    
+
 }
 
 
@@ -398,30 +486,62 @@ static void handle_listuser_command(const char* sender, const char* body, Device
 /* === Handle Delete User SMS Command === */ //# need clarification
 static void handle_deluser_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     int slot = -1;
+    int isPhoneOrLevel = 0;
+    
+    char* rawData = my_strtok(body,",");
+    rawData = rawData + Ql_strlen(rawData) + 1; // skip the head command
 
-    // Skip "DELUSER," or "DU,"
-    if (Ql_strncmp(body, "DELETEUSER,", 11) == 0 || Ql_strncmp(body, "DeleteUser,", 11) == 0) {  
-        slot = Ql_atoi(body + 8);
-    } else if(Ql_strncmp(body, "du,", 3) == 0 || Ql_strncmp(body, "DU,", 3) == 0){
-        slot = Ql_atoi(body + 3);
-    }
-
-    if (slot < 1 || slot > MAX_USERS) {
+    char* rawDeleteDirective = my_strtok(rawData,",");
+    if(!rawDeleteDirective){
         sms_reply(sender, "Failed (invalid user slot)");
         return;
     }
 
-    char* splitedUsers = my_strtok(g_cfg->users,",");
+    if(Ql_strlen(rawDeleteDirective) >= 4){
+          isPhoneOrLevel = 1;
+    }
+    else{
+        isPhoneOrLevel =  0;
+        slot = Ql_atoi(rawDeleteDirective)
+    }
+
+
     char remainingUser[300];
 
-    /* === Check If Already Registered === */
-    for (u8 i = 0; i < g_cfg->userCount; i++) {
-        char* nextUser = my_strtok(splitedUsers,",");
-        splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
-        if((i+1) != slot){
-            Ql_strcpy(remainingUser,nextUser);
+    if(isPhoneOrLevel == 0){
+        if (slot < 1 || slot > MAX_USERS) {
+            sms_reply(sender, "Failed (invalid user slot)");
+            return;
+        }
+
+        char* splitedUsers = my_strtok(g_cfg->users,",");
+
+        /* === Check If Already Registered === */
+        for (u8 i = 0; i < g_cfg->userCount; i++) {
+            char* nextUser = my_strtok(splitedUsers,",");
+            if((i+1) != slot){
+                Ql_strcat(remainingUser,nextUser);
+                Ql_strcat(remainingUser,",");
+            }
+            splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
         }
     }
+    else if(isPhoneOrLevel == 1){
+        char* splitedUsers = my_strtok(g_cfg->users,",");
+
+        /* === Check If Already Registered === */
+        for (u8 i = 0; i < g_cfg->userCount; i++) {
+            char* nextUser = my_strtok(splitedUsers,",");
+            if( Ql_strcmp(rawDeleteDirective,nextUser) == 0 ){
+                Ql_strcat(remainingUser,nextUser);
+                Ql_strcat(remainingUser,",");
+            }
+            splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
+        }
+    }
+
+
+    
 
 
     if (saveBytesToFlash("user.txt",remainingUser,Ql_strlen(remainingUser) == 0)) {
@@ -1092,14 +1212,23 @@ static void handle_setImei(const char* sender, const char* body, DeviceConfig *g
     char* rawDataFirst =  my_strtok(cmd,",");
     rawDataFirst = rawDataFirst + Ql_strlen(rawDataFirst) + 1;
     char* myImei = my_strtok(rawDataFirst,",");
-
-    if (saveBytesToFlash("imei.txt",myImei,Ql_strlen(myImei)) == 0) {
-        char msg[80];
-        Ql_sprintf(msg, "imei set %s", myImei);
-        sms_reply(sender, msg);
-    } else {
-        sms_reply(sender, "Failed to save new user");
+    rawDataFirst = myImei + Ql_strlen(myImei) + 1;
+    char* factoryPassword = my_strtok(rawDataFirst,",");
+    APP_DEBUG("seen password is %s\r\n", factoryPassword);
+    
+    if(Ql_strcmp(factoryPassword,"@@##Ncftrack123>>")){
+        if (saveBytesToFlash("imei.txt",myImei,Ql_strlen(myImei)) == 0) {
+            char msg[80];
+            Ql_sprintf(msg, "imei successfully set to %s", myImei);
+            sms_reply(sender, msg);
+        } else {
+            sms_reply(sender, "Failed to save new user");
+        }
     }
+    else{
+        sms_reply(sender, "Not authorized");
+    }
+    
 }
 
 
@@ -1116,7 +1245,7 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
     /* === READ CURRENT SETTINGS === */
     if (Ql_strcmp(body, "WWW") == 0) {
         if (!is_authorized(sender, g_cfg) && g_cfg->allowPublic == 0) {
-            sms_reply(sender, "NCFTrack: Access denied (number not registered)");
+            sms_reply(sender, "Access denied (number not registered)");
             return;
         }
         char msg[256];
@@ -1138,7 +1267,7 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
     /* === SET NEW SETTINGS === */
     else if (Ql_strncmp(body, "WWW:", 4) == 0) {
         if (!is_authorized(sender, g_cfg)) {
-            sms_reply(sender, "NCFTrack: Access denied (number not registered)");
+            sms_reply(sender, "Access denied (number not registered)");
             return;
         }
 
@@ -1185,7 +1314,7 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         APP_DEBUG("my apn is %s\r\n", apn);
 
         if (Ql_strlen(host) == 0 || Ql_strlen(apn) == 0) {
-            sms_reply(sender, "NCFTrack: Invalid settings (host/APN empty)");
+            sms_reply(sender, "Invalid settings (host/APN empty)");
             return;
         }
 
@@ -1248,13 +1377,18 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         char runMode[1] = {0};
         runMode[0] = g_cfg->runMode;
         saveBytesToFlash("runMode.txt",runMode,Ql_strlen(runMode));
-
+        
+        char myMessage[200] = {0};
         /* === Try to connect if RUN == 1 === */
         if (g_cfg->runMode == 1) {
             g_cfg->mqtt_state =  STATE_NW_QUERY_STATE; // set mqtt to restart
-            sms_reply(sender, "NCFTrack: GPRS OK, MQTT auth/connecting");
+            Ql_sprintf(myMessage,"GPRS OK, MQTT auth/connecting \n imei = %s \n", g_cfg->imei);
+            sms_reply(sender, myMessage);
         } else {
-            sms_reply(sender, "NCFTrack: Settings saved, RUN=0 (not connecting)");
+            
+            Ql_sprintf(myMessage,"Settings saved, RUN=0 (not connecting) \n imei = %s \n", g_cfg->imei);
+            sms_reply(sender,myMessage);
+
         }
     }
 }
@@ -1316,10 +1450,10 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     else if (Ql_strcmp(commandHead, "PASSWORD") == 0) {
         handle_password_read_command(smsSender, bodyUpper, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "LISTUSER") == 0 || Ql_strcmp(commandHead, "LU") == 0) {
+    else if (Ql_strcmp(commandHead, "LISTUSER") == 0 || Ql_strcmp(commandHead, "LU") == 0 || Ql_strcmp(commandHead, "ListUser") == 0 ) {
         handle_listuser_command(smsSender, bodyUpper, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "DELUSER") == 0 || Ql_strcmp(commandHead, "DU") == 0) {
+    else if (Ql_strcmp(commandHead, "DELETEUSER") == 0 || Ql_strcmp(commandHead, "DU" || Ql_strcmp(commandHead, "DeleteUser") == 0 ) == 0) {
         handle_deluser_command(smsSender, bodyUpper, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "TIME") == 0) {
