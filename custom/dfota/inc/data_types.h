@@ -100,7 +100,7 @@ typedef struct {
     Enum_GNSS_STATE gnss_state;
     char FW_VERSION[10];
     char HW_VERSION[10];
-    char imei[15];
+    char imei[25];
     u8 outputControl;
     char serverIP[20];
     char deviceTopic[22];
@@ -124,6 +124,9 @@ typedef struct {
     double speed;
     float batteryLevel;
     u8 trip;
+    u8 lastRelayStatus;
+    u8 ignationLevel;
+    u8 lastIgnationLevel;
 } DeviceConfig;
 
 

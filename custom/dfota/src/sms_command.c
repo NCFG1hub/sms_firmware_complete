@@ -11,6 +11,7 @@
 #include "gnss_parser.h"
 #include "ql_fs.h";
 #include "ql_error.h"
+#include "ql_time.h"
 
 
 char *my_strtok(char *str, const char *delim);
@@ -45,15 +46,25 @@ void sms_reply(const char* destNumber, const char* message) {
 
 
 static bool is_authorized(const char* number, DeviceConfig *g_cfg) {
-    bool myStatus = false;
-    if (g_cfg->allowPublic) 
+    APP_DEBUG("code run here 1\r\n");
+    bool myStatus = FALSE;
+    
+    if (g_cfg->allowPublic != 1) 
         return TRUE;
+
+    APP_DEBUG("code run here 2\r\n");
+
+    if (g_cfg->users == NULL || g_cfg->users[0] == '\0') {
+        APP_DEBUG("No users configured\r\n");
+        return FALSE;
+    }
 
     char* splitedUsers = my_strtok(g_cfg->users,",");
     char* nextUser;
+    APP_DEBUG("code run here 3\r\n");
     /* === Check If Already Registered === */
     for (u8 i = 0; i < g_cfg->userCount; i++) {
-        char* nextUser = my_strtok(splitedUsers,",");
+        nextUser = my_strtok(splitedUsers,",");
         APP_DEBUG("SEEN user %s\r\n",nextUser);
         if (Ql_strcmp(nextUser, number) == 0) {
             myStatus = TRUE;
@@ -61,7 +72,7 @@ static bool is_authorized(const char* number, DeviceConfig *g_cfg) {
         }
         splitedUsers = nextUser + Ql_strlen(nextUser) + 1;
     }
-
+    APP_DEBUG("code run here 4\r\n");
     return myStatus;
 }
 
@@ -70,12 +81,12 @@ static void handle_add_command(const char* sender, const char* body, DeviceConfi
 
     char savedPassword[25];
     u32 bytesRead = 0;
-    readFromFlashString("pwd.txt",savedPassword,bytesRead);
+    bytesRead = readFromFlashString("pwd.txt",savedPassword,250);
     savedPassword[bytesRead] = "\0";
 
     if(!savedPassword){ // if no password was saved, assume that the password is all zero
          APP_DEBUG("there is no saved password ");
-         Ql_strcpy(savedPassword,"000000\0",Ql_strlen("000000\0"));
+         Ql_strncpy(savedPassword,"000000\0",Ql_strlen("000000\0"));
     }
 
     char receivedOldPassword[25];
@@ -107,9 +118,9 @@ static void handle_add_command(const char* sender, const char* body, DeviceConfi
 
     if(Ql_strcmp(receivedOldPassword,savedPassword) == 0){
             if (saveBytesToFlash("pwd.txt",receivedNewPassword,Ql_strlen(receivedNewPassword)) == 0) {
-                Ql_strcpy(g_cfg->password,receivedNewPassword);
+                Ql_strncpy(g_cfg->password,receivedNewPassword,Ql_strlen(receivedNewPassword));
                 char successMsg[100];
-                Ql_sprintf(successMsg, "Password changed to %s", newPass);
+                Ql_sprintf(successMsg, "Password changed to %s", receivedNewPassword);
                 sms_reply(sender, successMsg);
             } else {
                 sms_reply(sender, "Failed to save password");
@@ -127,7 +138,7 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
 
     char users[500];
     u32 bytesRead = 0;
-    readFromFlashString("user.txt",g_cfg->users,bytesRead);
+    bytesRead = readFromFlashString("user.txt",g_cfg->users,200);
     saveBytesToFlash("userCount.txt",g_cfg->userCount,2);
 
     APP_DEBUG("saved users = %s,  total users = %d\r\n",g_cfg->users,g_cfg->userCount);
@@ -189,7 +200,7 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
     /* === Add The User If All Is Fine === */
     g_cfg->userCount++;
 
-    char* allNewUser = Ql_MEM_Alloc(Ql_strlen(formatedUser) + Ql_strlen(g_cfg->formatedUser) + 1);
+    char* allNewUser = Ql_MEM_Alloc(Ql_strlen(formatedUser) + Ql_strlen(formatedUser) + 1);
     Ql_strcat(allNewUser,g_cfg->users);
     Ql_strcat(allNewUser,",");
     Ql_strcat(allNewUser,formatedUser);
@@ -502,7 +513,7 @@ static void handle_deluser_command(const char* sender, const char* body, DeviceC
     }
     else{
         isPhoneOrLevel =  0;
-        slot = Ql_atoi(rawDeleteDirective)
+        slot = Ql_atoi(rawDeleteDirective);
     }
 
 
@@ -555,27 +566,44 @@ static void handle_deluser_command(const char* sender, const char* body, DeviceC
 
 /* === Handle Time Stamp SMS Command === */ 
 static void handle_time_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    int offset = -100; // invalid default
+    ST_Time time;
 
-    if (Ql_strncmp(body, "TIME,", 5) == 0 || Ql_strncmp(body, "Time,", 5) == 0) {
-        offset = Ql_atoi(body + 5);
+    char* rawData = my_strtok(body,",");
+    rawData = rawData + Ql_strlen(rawData) + 1;
+    char* mainData = my_strtok(rawData,",");
+    char numBuffer[3];
+    int bufIndex = 0;
+    for(int i = 0; i < Ql_strlen(mainData); ++i){
+        if(mainData[i] >= '0' || mainData[i] >= '9' || mainData[i] == '+' || mainData[i] >= '-'){
+            numBuffer[bufIndex] = mainData[i];
+            bufIndex = bufIndex + 1;
+        }
     }
 
-    if (offset < -12 || offset > 12) {
+    int myZone = Ql_atoi(numBuffer);
+    time.timezone = myZone;
+    Ql_SetLocalTime(&time);
+
+
+
+    if (myZone < -12 || myZone > 12) {
         sms_reply(sender, "Failed (offset must be between -12 and +12)");
         return;
     }
 
-    g_cfg->timezoneOffset = offset;
-    char myTimeZoneOffset[2] = {(offset >> 8),(offset & 0xff)}; // convert the timezone to bytes and save
+    g_cfg->timezoneOffset = myZone;
+    char myTimeZoneOffset[2] = {(myZone >> 8),(myZone & 0xff)}; // convert the timezone to bytes and save
     if (saveBytesToFlash("timezoneOffset.txt",myTimeZoneOffset,Ql_strlen(myTimeZoneOffset)) == 0) {
         char msg[50];
-        Ql_sprintf(msg, "Timezone offset set to %d", offset);
+        Ql_sprintf(msg, "Timezone offset set to %d", myZone);
         sms_reply(sender, msg);
     } else {
-        sms_reply(sender, "Failed to save timezone offset");
+        sms_reply(sender, "Failed to save timezone myZone");
     }
 }
+
+
+
 
 /* === Handle SMS Receaving Phone Number SMS Command === */
 static void handle_sms_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
@@ -625,11 +653,6 @@ static void handle_sms_command(const char* sender, const char* body, DeviceConfi
 
 /* === Handle Gets The Device Settings SMS Command === */
 static void handle_settings_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (Ql_strcmp(body, "SETTINGS") != 0) {
-        sms_reply(sender, "Failed (invalid format)");
-        return;
-    }
-
     char msg[160];
     Ql_sprintf(msg,
         "PWD:%s TZ:%d\r\n"
@@ -656,10 +679,6 @@ static void handle_settings_command(const char* sender, const char* body, Device
 
 /* === Handle Gets The Device Status SMS Command === */ //# need clarification
 static void handle_status_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (!(Ql_strcmp(body, "STATUS") == 0 || Ql_strcmp(body, "ST") == 0)) {
-        sms_reply(sender, "Failed (invalid format)");
-        return;
-    }
 
     int gsmSignal = get_gsm_signal_strength(g_cfg);   // 0-31
     int gpsFix    = 0; //get_gps_fix_status(g_cfg);        // 0 or 1
@@ -692,10 +711,6 @@ static void handle_status_command(const char* sender, const char* body, DeviceCo
 
 /* === Handle Get The Device Version SMS Command === */ // need clarification
 static void handle_version_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (!(Ql_strcmp(body, "VERSION") == 0 || Ql_strcmp(body, "V") == 0)) {
-        sms_reply(sender, "Failed (invalid format)");
-        return;
-    }
 
     //char imei[20] = {0};
     //get_device_imei(imei, sizeof(imei)); // Reads IMEI from GSM module
@@ -719,11 +734,6 @@ static void handle_version_command(const char* sender, const char* body, DeviceC
 
 /* === Handle Device Reboot SMS Command === */
 static void handle_reboot_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (!(Ql_strcmp(body, "REBOOT") == 0 || Ql_strcmp(body, "RB") == 0)) {
-        sms_reply(sender, "Failed (invalid format)");
-        return;
-    }
-
     sms_reply(sender, "Will reboot after 2 seconds.");
 
     // Small delay to allow SMS to send before reboot
@@ -738,12 +748,18 @@ static void handle_reboot_command(const char* sender, const char* body, DeviceCo
 
 /* === Handle Set Sleep Mode SMS Command === */
 static void handle_sleep_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (Ql_strncmp(body, "SET,SLEEP,", 10) != 0) {
-        sms_reply(sender, "Failed (format: SET,SLEEP,0/1)");
-        return;
+    int mode = -1;
+    char* rawData = my_strtok(body,",");
+    rawData = rawData + Ql_strlen(rawData) + 1; // skip first comma
+
+    char* rawData2 =  my_strtok(rawData,",");
+    rawData2 = rawData2 + Ql_strlen(rawData2) + 1; // skip second comma
+    char* rawMode = my_strtok(rawData2,",");
+    if(rawMode){
+        mode = Ql_atoi(rawMode);
     }
 
-    int mode = Ql_atoi(body + 10);
+    
     if (mode != 0 && mode != 1) {
         sms_reply(sender, "Failed (X must be 0 or 1)");
         return;
@@ -756,9 +772,11 @@ static void handle_sleep_command(const char* sender, const char* body, DeviceCon
 
     if (mode == 1) {
        // enter_low_power_mode();
+        Ql_SleepEnable();
         sms_reply(sender, "Sleep mode enabled");
     } else {
         //exit_low_power_mode();
+        Ql_SleepDisable();
         sms_reply(sender, "Sleep mode disabled");
     }
 }
@@ -768,10 +786,6 @@ static void handle_sleep_command(const char* sender, const char* body, DeviceCon
 
 /* === Handle Help SMS Command === */
 static void handle_help_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    if (!(Ql_strcmp(body, "HELP") == 0 || Ql_strcmp(body, "?") == 0)) {
-        sms_reply(sender, "Failed (invalid format)");
-        return;
-    }
 
     const char* helpText =
         "NCFTrack cmds:\r\n"
@@ -793,20 +807,20 @@ static void handle_help_command(const char* sender, const char* body, DeviceConf
 
 /* === Handle All Find SMS Command === */ // # need clarification
 static void handle_find_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[64];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
     GNSS_Info myGpsInfo;
 
     if (Ql_strcmp(cmd, "FIND") == 0) {  // just get the gps location and send sms
         // Immediate location
-        parseGPRMC(g_cfg->gpsData,&myGpsInfo);
-        int mileage = get_mileage();
-        const char* addr = reverse_geocode(myGpsInfo.latitude, myGpsInfo.longitude);
+        //parseGPRMC(g_cfg->gpsData,&myGpsInfo);
+        int mileage = g_cfg->odometerKm;
+        const char* addr = " ";
 
         char msg[160];
         Ql_sprintf(msg, "Lat:%.6f Lon:%.6f\r\nAddr:%s\r\nMileage:%dkm",
-                   myGpsInfo.latitude, myGpsInfo.longitude, addr, mileage);
+                   g_cfg->latitude, g_cfg->longitude, addr, mileage);
         sms_reply(sender, msg);
 
     } else if (Ql_strcmp(cmd, "FIND,NEAR") == 0) {
@@ -875,7 +889,7 @@ static void handle_find_command(const char* sender, const char* body, DeviceConf
 
 /* === Handle All Trip Report SMS Command === */
 static void handle_trip_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[64];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -917,7 +931,7 @@ static void handle_trip_command(const char* sender, const char* body, DeviceConf
 
 /* === Handle Alarm SMS Command === */
 static void handle_alarm_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -942,7 +956,7 @@ static void handle_alarm_command(const char* sender, const char* body, DeviceCon
 
 /* === Handle Listen SMS Command === */
 static void handle_listen_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[16];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -966,7 +980,7 @@ static void handle_listen_command(const char* sender, const char* body, DeviceCo
 
 /* === Handle Speed Settings SMS Command === */
 static void handle_speed_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1014,7 +1028,7 @@ static void handle_speed_command(const char* sender, const char* body, DeviceCon
 
 /* === Handle Main Power SMS Command === */
 static void handle_mainpower_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1041,24 +1055,27 @@ static void handle_mainpower_command(const char* sender, const char* body, Devic
 
 /* === Handle Disable SMS Command === */
 static void handle_disable_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
-    Ql_strncpy(cmd, body, sizeof(cmd)-1);
-    Ql_toupper(cmd);
+    char* rawCommand = my_strtok(body,",");
+    rawCommand = rawCommand + Ql_strlen(rawCommand) + 1; // skip the commad head
+   
+    char* cmd = my_strtok(rawCommand,",");
 
-    if (Ql_strcmp(cmd, "DISABLE,ON") == 0) {
+    if (Ql_strcmp(cmd, "ON") == 0 || Ql_strcmp(cmd, "on") == 0) {
         g_cfg->vehicleDisabled = 1;
         // Our actual GPIO control code to activate/deactivate comes here
         char vehicleDisabled[1] = {0};
         vehicleDisabled[0] = g_cfg->vehicleDisabled;
         saveBytesToFlash("vehicleDisabled.txt",vehicleDisabled,Ql_strlen(vehicleDisabled));
+        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); //turn onn the relay
         sms_reply(sender, "Vehicle immobilized");
 
-    } else if (Ql_strcmp(cmd, "DISABLE,OFF") == 0) {
+    } else if (Ql_strcmp(cmd, "OFF") == 0 || Ql_strcmp(cmd, "off") == 0) {
         g_cfg->vehicleDisabled = 0;
         // Our actual GPIO control code to activate/deactivate comes here
         char vehicleDisabled[1] = {0};
         vehicleDisabled[0] = g_cfg->vehicleDisabled;
         saveBytesToFlash("vehicleDisabled.txt",vehicleDisabled,Ql_strlen(vehicleDisabled));
+        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); // turn off the relay
         sms_reply(sender, "Vehicle enabled");
 
     } else {
@@ -1071,9 +1088,14 @@ static void handle_disable_command(const char* sender, const char* body, DeviceC
 
 /* === Handle Ignition SMS Command === */
 static void handle_ignition_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
+
+    if (!is_authorized(sender, g_cfg) && g_cfg->allowPublic == 0) {
+        sms_reply(sender, "Access denied (number not registered)");
+        return;
+    }
 
     if (Ql_strcmp(cmd, "IGNITION,ON") == 0 || Ql_strcmp(cmd, "I,ON") == 0) {
         g_cfg->ignitionReporting = 1;
@@ -1086,7 +1108,7 @@ static void handle_ignition_command(const char* sender, const char* body, Device
         g_cfg->ignitionReporting = 0;
         char ignitionReporting[1] = {0};
         ignitionReporting[0] = g_cfg->ignitionReporting;
-       saveBytesToFlash("ignitionReporting.txt",ignitionReporting,Ql_strlen(ignitionReporting));
+        saveBytesToFlash("ignitionReporting.txt",ignitionReporting,Ql_strlen(ignitionReporting));
         sms_reply(sender, "Ignition reporting OFF");
 
     } else {
@@ -1098,7 +1120,7 @@ static void handle_ignition_command(const char* sender, const char* body, Device
 
 /* === Handle Set Odo SMS Command === */
 static void handle_set_odo_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[64];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1126,7 +1148,7 @@ static void handle_set_odo_command(const char* sender, const char* body, DeviceC
 
 /* === Handle Shock SMS Command === */
 static void handle_shock_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1157,7 +1179,7 @@ static void handle_shock_command(const char* sender, const char* body, DeviceCon
 
 /* === Handle Logger SMS Command === */
 static void handle_logger_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1174,7 +1196,7 @@ static void handle_logger_command(const char* sender, const char* body, DeviceCo
 
 /* === Handle Heart Beat SMS Command === */
 static void handle_heartbeat_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1207,23 +1229,45 @@ static void handle_heartbeat_command(const char* sender, const char* body, Devic
 
 
 static void handle_setImei(const char* sender, const char* body, DeviceConfig *g_cfg) {
-    char cmd[32];
-    Ql_strncpy(cmd, body, sizeof(cmd)-1);
+    APP_DEBUG("seen command inside setimei function = %s\r\n", body);
+    char cmd[250] = {0};
+    char recvImei[200] ={0};
+    char myPassword[200] = {0};
+    Ql_strncpy(cmd, body, Ql_strlen(body));
+    cmd[Ql_strlen(body)] = '\0';
     char* rawDataFirst =  my_strtok(cmd,",");
+    if(rawDataFirst  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+
     rawDataFirst = rawDataFirst + Ql_strlen(rawDataFirst) + 1;
     char* myImei = my_strtok(rawDataFirst,",");
+    Ql_strncpy(recvImei,myImei,Ql_strlen(myImei));
+    recvImei[Ql_strlen(myImei)] = '\0';
+    if(myImei  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+
     rawDataFirst = myImei + Ql_strlen(myImei) + 1;
     char* factoryPassword = my_strtok(rawDataFirst,",");
-    APP_DEBUG("seen password is %s\r\n", factoryPassword);
+    Ql_strncpy(myPassword,factoryPassword,Ql_strlen(factoryPassword));
+    myPassword[Ql_strlen(factoryPassword)] = '\0';
+    if(factoryPassword  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+    APP_DEBUG("seen password is %s\r\n", myPassword);
+    APP_DEBUG("seen imei is %s\r\n", recvImei);
     
-    if(Ql_strcmp(factoryPassword,"@@##Ncftrack123>>")){
-        if (saveBytesToFlash("imei.txt",myImei,Ql_strlen(myImei)) == 0) {
-            char msg[80];
-            Ql_sprintf(msg, "imei successfully set to %s", myImei);
-            sms_reply(sender, msg);
-        } else {
-            sms_reply(sender, "Failed to save new user");
-        }
+    if(Ql_strcmp(myPassword,"1253633738484") == 0){
+        saveBytesToFlash("imei.txt",recvImei,Ql_strlen(recvImei));
+        Ql_strncpy(g_cfg->imei,recvImei,Ql_strlen(recvImei)); 
+        g_cfg->imei[Ql_strlen(recvImei)] = '\0';
+        char msg[200];
+        Ql_sprintf(msg, "imei successfully set to %s", recvImei);
+        sms_reply(sender, msg);
     }
     else{
         sms_reply(sender, "Not authorized");
@@ -1235,7 +1279,7 @@ static void handle_setImei(const char* sender, const char* body, DeviceConfig *g
 /* === Handle WWW SMS Command === */
 static void handle_www_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
     APP_DEBUG("my body is ##### %s\r\n", body);
-    char cmd[8];
+    char cmd[200];
     Ql_strncpy(cmd, body, sizeof(cmd)-1);
     Ql_toupper(cmd);
 
@@ -1401,6 +1445,7 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     APP_DEBUG("[SMS] Body: %s\r\n", smsContent);
 
     /* ==== If Not Authorized React And Go On ==== */
+    
     if (!is_authorized(smsSender, g_cfg)) {
         sms_reply(smsSender, "Access denied (number not registered)");
         //Ql_SMS_Delete(1, SMS_DEL_INDEXED_MSG, SIM0);
@@ -1408,120 +1453,119 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     }
 
     /* === Convert to Uppercase For Case-Insensitive Compare === */
-    char bodyUpper[160];
-    Ql_strcpy(bodyUpper, smsContent);
+    char bodyUpper[1024];
+    Ql_strncpy(bodyUpper, smsContent,Ql_strlen(smsContent));
     /*for (char* p = bodyUpper; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') *p -= 32;
     }*/
 
     APP_DEBUG("command %s\r\n", bodyUpper);
 
-    char* commandHead = my_strtok(smsContent,",");
+    char* commandHead = my_strtok(bodyUpper,",");
+
+    APP_DEBUG("seen command head %s\r\n", commandHead);
 
     /* === Check if it starts with ADD, ETC. === */
     if (Ql_strcmp(commandHead, "ADD") == 0) {
-        handle_add_command(smsSender, bodyUpper, g_cfg);
+        handle_add_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "ADDUSER") == 0 || Ql_strcmp(commandHead, "AU") == 0) {
-        handle_adduser_command(smsSender, bodyUpper, g_cfg);
+        handle_adduser_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "NAME") == 0 || Ql_strcmp(commandHead, "N") == 0) {
-        handle_name_command(smsSender, bodyUpper, g_cfg);
+        handle_name_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "SET") == 0 || Ql_strcmp(commandHead, "SET") == 0) {
+    else if (Ql_strcmp(commandHead, "SET") == 0 || Ql_strcmp(commandHead, "Set") == 0 || Ql_strcmp(commandHead, "set") == 0) {
         commandHead =  commandHead + Ql_strlen(commandHead) + 1;
         char* nextCommand = my_strtok(commandHead,",");
-        if(Ql_strcmp(nextCommand,"ALLOWPUBLIC") == 0){
-            handle_allowpublic_command(smsSender, bodyUpper, g_cfg);
+        if(Ql_strcmp(nextCommand,"ALLOWPUBLIC") == 0 || Ql_strcmp(nextCommand,"AllowPublic") == 0 || Ql_strcmp(nextCommand,"allowpublic") == 0){
+            handle_allowpublic_command(smsSender, smsContent, g_cfg);
         }
-        else if(Ql_strcmp(nextCommand,"SLEEP") == 0){
-           handle_sleep_command(smsSender, bodyUpper, g_cfg);
+        else if(Ql_strcmp(nextCommand,"SLEEP") == 0 || Ql_strcmp(nextCommand,"Sleep") == 0 || Ql_strcmp(nextCommand,"sleep") == 0){
+           handle_sleep_command(smsSender, smsContent, g_cfg);
         }
-        else if (Ql_strcmp(nextCommand, "ODO") == 0) {
-           handle_set_odo_command(smsSender, bodyUpper, g_cfg);
+        else if (Ql_strcmp(nextCommand, "ODO") == 0 || Ql_strcmp(nextCommand, "Odo") == 0 || Ql_strcmp(nextCommand, "odo") == 0) {
+           handle_set_odo_command(smsSender, smsContent, g_cfg);
         } 
     } 
     else if (Ql_strcmp(commandHead, "PASSWORD") == 0) {
-        handle_password_command(smsSender, bodyUpper, g_cfg);
+        handle_password_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "GETREPORT") == 0 || Ql_strcmp(commandHead, "GR") == 0) {
-        handle_getreport_command(smsSender, bodyUpper, g_cfg);
-    } 
-    else if (Ql_strcmp(commandHead, "PASSWORD") == 0) {
-        handle_password_read_command(smsSender, bodyUpper, g_cfg);
+        handle_getreport_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "LISTUSER") == 0 || Ql_strcmp(commandHead, "LU") == 0 || Ql_strcmp(commandHead, "ListUser") == 0 ) {
-        handle_listuser_command(smsSender, bodyUpper, g_cfg);
+        handle_listuser_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "DELETEUSER") == 0 || Ql_strcmp(commandHead, "DU" || Ql_strcmp(commandHead, "DeleteUser") == 0 ) == 0) {
-        handle_deluser_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "DELETEUSER") == 0 || Ql_strcmp(commandHead, "DU") == 0 || Ql_strcmp(commandHead, "DeleteUser") == 0) {
+        handle_deluser_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "TIME") == 0) {
-        handle_time_command(smsSender, bodyUpper, g_cfg);
+        handle_time_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "SMS") == 0) {
-        handle_sms_command(smsSender, bodyUpper, g_cfg);
+        handle_sms_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "SETTINGS") == 0) {
-        handle_settings_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "SETTINGS") == 0 || Ql_strcmp(commandHead, "Settings") == 0 || Ql_strcmp(commandHead, "settings") == 0) {
+        handle_settings_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "STATUS") == 0 || Ql_strcmp(commandHead, "ST") == 0) {
-        handle_status_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "STATUS") == 0 || Ql_strcmp(commandHead, "ST") == 0 || Ql_strcmp(commandHead, "Status") == 0 || Ql_strcmp(commandHead, "status") == 0 || Ql_strcmp(commandHead, "st") == 0 ) {
+        handle_status_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "VERSION") == 0 || Ql_strcmp(commandHead, "V") == 0) {
-        handle_version_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "VERSION") == 0 || Ql_strcmp(commandHead, "V") == 0 || Ql_strcmp(commandHead, "Version") == 0 || Ql_strcmp(commandHead, "version") == 0 || Ql_strcmp(commandHead, "v") == 0) {
+        handle_version_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "REBOOT") == 0 || Ql_strcmp(commandHead, "RB") == 0) {
-        handle_reboot_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "REBOOT") == 0 || Ql_strcmp(commandHead, "RB") == 0 || Ql_strcmp(commandHead, "Reboot") == 0 || Ql_strcmp(commandHead, "reboot") == 0|| Ql_strcmp(commandHead, "rb") == 0) {
+        handle_reboot_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "HELP") == 0 || Ql_strcmp(commandHead, "?") == 0) {
-        handle_help_command(smsSender, bodyUpper, g_cfg);
+        handle_help_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "FIND") == 0) {
-        handle_find_command(smsSender, bodyUpper, g_cfg);
+        handle_find_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "TRIP") == 0) {
-        handle_trip_command(smsSender, bodyUpper, g_cfg);
+        handle_trip_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "ALARM") == 0) {
-        handle_alarm_command(smsSender, bodyUpper, g_cfg);
+        handle_alarm_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "LISTEN") == 0) {
-        handle_listen_command(smsSender, bodyUpper, g_cfg);
+        handle_listen_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "SPEED") == 0) {
-        handle_speed_command(smsSender, bodyUpper, g_cfg);
+        handle_speed_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "MAINPOWER") == 0 || Ql_strcmp(commandHead, "MP") == 0) {
-        handle_mainpower_command(smsSender, bodyUpper, g_cfg);
+        handle_mainpower_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "DISABLE") == 0) {
-        handle_disable_command(smsSender, bodyUpper, g_cfg);
+    else if (Ql_strcmp(commandHead, "DISABLE") == 0 || Ql_strcmp(commandHead, "Disable") == 0 || Ql_strcmp(commandHead, "disable") == 0) {
+        handle_disable_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "IGNITION") == 0 || Ql_strcmp(commandHead, "I") == 0) {
-        handle_ignition_command(smsSender, bodyUpper,g_cfg);
+        handle_ignition_command(smsSender, smsContent,g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "SHOCK") == 0) {
-        handle_shock_command(smsSender, bodyUpper, g_cfg);
+        handle_shock_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "LOGGER") == 0) {
-        handle_logger_command(smsSender, bodyUpper, g_cfg);
+        handle_logger_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "HEARTBEAT") == 0) {
-        handle_heartbeat_command(smsSender, bodyUpper, g_cfg);
+        handle_heartbeat_command(smsSender, smsContent, g_cfg);
     }  
-    if (Ql_strcmp(commandHead, "IMEI") == 0 || Ql_strcmp(commandHead, "imei") == 0) {
-        handle_setImei(smsSender, bodyUpper, g_cfg);
+    if (Ql_strcmp(commandHead, "IMEI") == 0) {
+        handle_setImei(smsSender, smsContent, g_cfg);
     } 
     else {
-        char bodyUpper2[160];
-        Ql_strcpy(bodyUpper2, bodyUpper);
+        char bodyUpper2[1024];
+        Ql_strncpy(bodyUpper2, smsContent,Ql_strlen(smsContent));
         
         char* commandHead2 =  my_strtok(bodyUpper2,":");
         APP_DEBUG("command %s\r\n", commandHead2);
 
         if (Ql_strcmp(commandHead2, "WWW") == 0) {
-            handle_www_command(smsSender, bodyUpper, g_cfg);
+            handle_www_command(smsSender, smsContent, g_cfg);
         }
         else{
             sms_reply(smsSender, "Unknown command");

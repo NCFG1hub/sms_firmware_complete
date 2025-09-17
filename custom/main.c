@@ -88,6 +88,10 @@ static s32 isPdpContextGotten = 0;
 #define PIN_TIMER_PERIOD     5000
 
 
+#define SMS_TIMER_ID         0x250
+#define SMS_TIMER_PERIOD     7000
+
+
 #define PI 3.14159265358979323846
 #define EARTH_RADIUS 6371000.0  // in meters
 
@@ -149,6 +153,7 @@ bool GNSS_Get_FixStatus_from_RMC(u8 *NMEA_Str);
 void Callback_GNSS_APGS_Hdlr(char *str_URC);
 static void Gnss_Callback_Timer(u32 timerId, void* param);
 static void Pin_Check_Callback_Timer(u32 timerId, void* param);
+static void SMS_Callback_Timer(u32 timerId, void* param);
 static void Watchdog_Init(void);
 
 u32 HexStringToInt(const char* hexStr);
@@ -244,9 +249,12 @@ static u8 last_m_mqtt_state = STATE_NW_QUERY_STATE;
 char deviceData[1024];
 char commandData[1024];
 char deviceAlarm[1024];
+char receivedSms[1024];
+char senderPhone[30];
 u16 isDeviceData = 0;
 u16 isDeviceAlarm = 0;
 u16 iscommandData = 0;
+u16 isNewSmsReceived = 0;
 
 u16 countPublishFailure = 0;
 u16 countMqttResponseWaitTime = 0;
@@ -291,7 +299,7 @@ ST_CellInfo fourthCellInfo;
 GPS_LOCATION_T gnssData;
 GPS_LOCATION_T prevGnssData;
 
-s32 sosPinLevel;
+s32 ignationPinLevel;
 float batteryLevel;
 
 /* mqttp topics */
@@ -452,6 +460,12 @@ void proc_main_task(s32 taskId)
 
     Ql_Timer_Register(PIN_TIMER_ID, Pin_Check_Callback_Timer, NULL);
 	Ql_Timer_Start(PIN_TIMER_ID, PIN_TIMER_PERIOD, TRUE);
+
+
+    Ql_Timer_Register(SMS_TIMER_ID, SMS_Callback_Timer, NULL);
+	Ql_Timer_Start(SMS_TIMER_ID, SMS_TIMER_PERIOD, TRUE);
+
+
 
 	APP_DEBUG("//<register recv callback,ret = %d\r\n",ret);
 
@@ -734,7 +748,6 @@ static void mqtt_recv(u8* buffer,u32 length)
 
     //+QMTRECV: 0,38899,device/23478789654577,{"action": "positionPacket","imei": "23478789654577","utcTime":-2010018745,"longitude":0,"longitudeDirection":⸮,"latitude":-618475290,"latitudeDirection":y,"speed":69,"courseOverGround":64,"deviceDate":1249320088,"magneticVariation":1082364039,"battery":78,"trip":-2118123520,"external":-1030792151}
 
-
 	APP_DEBUG("//<data:%s,len:%d\r\n",buffer,length);
     char* rawMessage = my_strtok(buffer,",");
     rawMessage = rawMessage + Ql_strlen(rawMessage) + 1;
@@ -901,57 +914,80 @@ static void mqtt_recv(u8* buffer,u32 length)
 
 static void Pin_Check_Callback_Timer(u32 timerId, void* param){
     if(PIN_TIMER_ID == timerId){
-        sosPinLevel = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
+        devConfig.ignationLevel = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
+        devConfig.ignationStatus = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
         batteryLevel = get_battery_percentage(&devConfig);
-        APP_DEBUG("checking pin level battery = %2f, sospinLevel = %d \r\n",batteryLevel,sosPinLevel);
+        APP_DEBUG("checking pin level battery = %2f, ignationPinLevel = %d \r\n",batteryLevel,ignationPinLevel);
 
-        if(devConfig.trip == 1){
+        if(devConfig.vehicleDisabled == 1){
             Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); 
         }
         else{
             Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW); 
-            if(devConfig.tripReporting == 1){
-                Ql_memset(deviceAlarm,0,Ql_strlen(deviceAlarm));
-                Ql_sprintf(deviceAlarm,
-                    "{"
-                        "\"action\": \"tripAlarmPacket\","
-                        "\"imei\": \"%s\","
-                                "\"utcTime\":%2f,"
-                                "\"longitude\":%8f,"
-                                "\"longitudeDirection\":\"%c\","
-                                "\"latitude\":%8f,"
-                                "\"latitudeDirection\":\"%c\","
-                                "\"speed\":%6f,"
-                                "\"courseOverGround\":%6f,"
-                                "\"deviceDate\":%d,"
-                                "\"magneticVariation\":%2f,"
-                                "\"battery\":%f,"
-                                "\"trip\":%d,"
-                                "\"external\":%d,"
-                                "\"ordor\":%d"
-                            "}",
-                            devConfig.imei,
-                            gnssData.utcTime,
-                            gnssData.longitude,
-                            gnssData.longDirection,
-                            gnssData.latitude,
-                            gnssData.latDirection,
-                            gnssData.speed,
-                            gnssData.courseOverGround,
-                            gnssData.deviceDate,
-                            gnssData.magneticVariation,
-                            batteryLevel,  // battery placeholder
-                            devConfig.trip,  // trip placeholder
-                            1,   // external placeholder
-                            devConfig.odometerKm
-                     );
-
-                isDeviceAlarm = 1;
-            }
         }
+
+        if(devConfig.ignitionReporting == 1){
+              if(devConfig.ignationLevel != devConfig.lastIgnationLevel){
+                    Ql_memset(deviceAlarm,0,Ql_strlen(deviceAlarm));
+                    Ql_sprintf(deviceAlarm,
+                        "{"
+                            "\"action\": \"ignationReportPacket\","
+                            "\"imei\": \"%s\","
+                                    "\"utcTime\":%2f,"
+                                    "\"longitude\":%8f,"
+                                    "\"longitudeDirection\":\"%c\","
+                                    "\"latitude\":%8f,"
+                                    "\"latitudeDirection\":\"%c\","
+                                    "\"speed\":%6f,"
+                                    "\"courseOverGround\":%6f,"
+                                    "\"deviceDate\":%d,"
+                                    "\"magneticVariation\":%2f,"
+                                    "\"battery\":%f,"
+                                    "\"ignation\":%d,"
+                                    "\"vehicleDisabled\":%d,"
+                                    "\"external\":%d,"
+                                    "\"ordor\":%d"
+                                "}",
+                                devConfig.imei,
+                                gnssData.utcTime,
+                                gnssData.longitude,
+                                gnssData.longDirection,
+                                gnssData.latitude,
+                                gnssData.latDirection,
+                                gnssData.speed,
+                                gnssData.courseOverGround,
+                                gnssData.deviceDate,
+                                gnssData.magneticVariation,
+                                batteryLevel,  // battery placeholder
+                                devConfig.ignationLevel,  // ignation placeholder
+                                devConfig.vehicleDisabled, // vehicleDisabled
+                                1,   // external placeholder
+                                devConfig.odometerKm
+                        );
+
+                    isDeviceAlarm = 1;
+              }
+              devConfig.lastIgnationLevel = devConfig.ignationLevel;
+        }
+
+        
     } 
 }
 
+
+
+static void SMS_Callback_Timer(u32 timerId, void* param){
+    s32 ret;
+    if(SMS_TIMER_ID == timerId){
+        if(isNewSmsReceived == 1){
+            sms_pump(senderPhone,receivedSms,&devConfig);
+            APP_DEBUG("received sms = %s, sender phone = %s \r\n",receivedSms,senderPhone);
+            Ql_memset(receivedSms,0,Ql_strlen(receivedSms));
+            Ql_memset(senderPhone,0,Ql_strlen(senderPhone));
+            isNewSmsReceived = 0;
+        }
+    }     
+}
 
 
 static void Mqtt_Callback_Timer(u32 timerId, void* param)
@@ -1785,7 +1821,7 @@ static bool SMS_Initialize(void)
 
 
 
-void controlRelay(u8 myControl){
+void controlvehicleDisabled(u8 myControl){
     if(myControl == 0x01){
         Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH);   // set GPIO1 = HIGH
     }
@@ -2148,7 +2184,13 @@ static void Hdlr_RecvNewSMS(u32 nIndex, bool bAutoReply)
     APP_DEBUG("new text message :%s -->\r\n",myTextMessage);
     APP_DEBUG("new phone number :%s -->\r\n",aPhNum);
 
-    sms_pump(aPhNum,myTextMessage,&devConfig); 
+    isNewSmsReceived = 1;
+    Ql_memset(receivedSms,0,Ql_strlen(receivedSms));
+    Ql_memset(senderPhone,0,Ql_strlen(senderPhone));
+    Ql_strncpy(receivedSms,myTextMessage,Ql_strlen(myTextMessage));
+    Ql_strncpy(senderPhone,aPhNum,Ql_strlen(aPhNum));
+
+    
     Ql_MEM_Free(pTextInfo);
 
     u32 count = 0;
@@ -2191,6 +2233,8 @@ void loadConfig(){
     char allowPublic[1] = {0};
     numberOfBytesRead = readFromFlash("allowPublic.txt",allowPublic,1);
     devConfig.allowPublic = (u8)allowPublic[0];
+
+
 
     char unitName[MAX_NAME_LEN] = {0};
     numberOfBytesRead = readFromFlashString("name.txt",unitName,MAX_NAME_LEN);
