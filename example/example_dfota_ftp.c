@@ -112,7 +112,7 @@ static s32 FotaUpdate_TimeOut_TmrId =   (TIMER_ID_USER_START + 2);
 static void SIM_Card_State_Ind(u32 sim_stat);
 static void CallBack_UART_Hdlr(Enum_SerialPort port, Enum_UARTEventType msg, bool level, void* customizedPara);
 static void UpgradeTimeOut_Callback_Timer(u32 timerId, void* param);
-static void ftp_downfile_timer(u32 timerId, void* param);// timer Æô¶¯¿ªÊ¼ÏÂÔØÎÄ¼þ
+static void ftp_downfile_timer(u32 timerId, void* param);// timer ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
 
 
 void proc_main_task(s32 taskId)
@@ -194,7 +194,9 @@ static void UpgradeTimeOut_Callback_Timer(u32 timerId, void* param)
     Ql_Sleep(3000);
     Ql_Reset(0);
 }
-static void ftp_downfile_timer(u32 timerId, void* param)// timer Æô¶¯¿ªÊ¼ÏÂÔØÎÄ¼þ
+
+
+static void ftp_downfile_timer(u32 timerId, void* param)// timer ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½
 {
     s32 strLen;
     ST_GprsConfig apnCfg;

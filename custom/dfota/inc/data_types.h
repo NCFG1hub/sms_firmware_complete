@@ -127,6 +127,9 @@ typedef struct {
     u8 lastRelayStatus;
     u8 ignationLevel;
     u8 lastIgnationLevel;
+    char upgradeLink[200];
+    char ipAddress[35];
+    u16 isRunUpgrade;
 } DeviceConfig;
 
 

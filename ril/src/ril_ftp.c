@@ -43,7 +43,27 @@
 #include "ril_ftp.h"
 #include "ril_network.h"
 
+
 #ifdef __OCPU_RIL_SUPPORT__ 
+
+#define DEBUG_ENABLE 1
+#if DEBUG_ENABLE > 0
+#define DEBUG_PORT  UART_PORT1
+#define DBG_BUF_LEN   1024
+static char DBG_BUFFER[DBG_BUF_LEN];
+#define APP_DEBUG(FORMAT,...) {\
+    Ql_memset(DBG_BUFFER, 0, DBG_BUF_LEN);\
+    Ql_sprintf(DBG_BUFFER,FORMAT,##__VA_ARGS__); \
+    if (UART_PORT2 == (DEBUG_PORT)) \
+    {\
+        Ql_Debug_Trace(DBG_BUFFER);\
+    } else {\
+        Ql_UART_Write((Enum_SerialPort)(DEBUG_PORT), (u8*)(DBG_BUFFER), Ql_strlen((const char *)(DBG_BUFFER)));\
+    }\
+}
+#else
+#define APP_DEBUG(FORMAT,...) 
+#endif
 
 #define RIL_FTP_DEBUG_ENABLE 0
 #if RIL_FTP_DEBUG_ENABLE > 0
@@ -59,6 +79,7 @@ extern CallBack_Ftp_Upload FtpPut_IND_CB;
 extern CallBack_Ftp_Download FtpGet_IND_CB;
 static s32 ATResponse_FTP_handler_Common(char* line, u32 len, void* userdata)
 {
+    APP_DEBUG(" response from AT = %s", line);
     ST_AT_ftpParam *ftpParam = (ST_AT_ftpParam *)userdata;
     char *head = Ql_RIL_FindString(line, len, ftpParam->prefix); //continue wait
     if(head)
@@ -110,6 +131,7 @@ s32 RIL_FTP_QFTPOPEN(u8* hostName, u32 port,u8* userName,u8* password, bool mode
     {
         Ql_memset(strAT, 0, sizeof(strAT));
         Ql_sprintf(strAT, "AT+QFTPUSER=\"%s\"\n", userName);
+        APP_DEBUG("AT Command >> %s",strAT);
         ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT),NULL,NULL,0);
         RIL_FTP_DEBUG(DBG_Buffer,"<-- Send AT:%s, ret = %d -->\r\n",strAT, ret);
         if (RIL_AT_SUCCESS != ret)
@@ -122,6 +144,7 @@ s32 RIL_FTP_QFTPOPEN(u8* hostName, u32 port,u8* userName,u8* password, bool mode
     {
         Ql_memset(strAT, 0, sizeof(strAT));
         Ql_sprintf(strAT, "AT+QFTPPASS=\"%s\"\n", password);
+        APP_DEBUG("AT Command >> %s",strAT);
         ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT),NULL,NULL,0);
         RIL_FTP_DEBUG(DBG_Buffer,"<-- Send AT:%s, ret = %d -->\r\n",strAT, ret);
         if (RIL_AT_SUCCESS != ret)
@@ -149,8 +172,9 @@ s32 RIL_FTP_QFTPOPEN(u8* hostName, u32 port,u8* userName,u8* password, bool mode
     }
 #endif 
 
-	Ql_memset(strAT, 0, sizeof(strAT));
+	/*Ql_memset(strAT, 0, sizeof(strAT));
 	Ql_sprintf(strAT, "AT+QIREGAPP\n");
+    APP_DEBUG("AT Command >> %s",strAT);
 	ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT),NULL,NULL,0);
 	RIL_FTP_DEBUG(DBG_Buffer,"<-- Send AT:%s, ret = %d -->\r\n",strAT, ret);
 	if (RIL_AT_SUCCESS != ret)
@@ -161,29 +185,33 @@ s32 RIL_FTP_QFTPOPEN(u8* hostName, u32 port,u8* userName,u8* password, bool mode
     Ql_Sleep(100);
     Ql_memset(strAT, 0, sizeof(strAT));
     Ql_sprintf(strAT, "AT+QIACT\n", mode);
+    APP_DEBUG("AT Command >> %s",strAT);
     ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT),NULL,NULL,0);
     RIL_FTP_DEBUG(DBG_Buffer,"<-- Send AT:%s, ret = %d -->\r\n",strAT, ret);
     if (RIL_AT_SUCCESS != ret)
     {
         return ret;
-    }
+    }*/
      
 
     Ql_memset(strAT, 0, sizeof(strAT));
     Ql_sprintf(strAT, "AT+QFTPOPEN=\"%s\",%d\n", hostName, port);
     ftpParam.prefix="+QFTPOPEN:";
     ftpParam.data = 255;
+    APP_DEBUG("AT Command >> %s",strAT);
     ret = Ql_RIL_SendATCmd(strAT,Ql_strlen(strAT),ATResponse_FTP_handler_Common,(void* )&ftpParam,0);
     RIL_FTP_DEBUG(DBG_Buffer,"<-- Send AT:%s, ret = %d -->\r\n",strAT, ret);
-         
+    Ql_Sleep(2000);
 
     if(RIL_AT_SUCCESS != ret)
     {
+        APP_DEBUG("\r\n<-- send AT command failure -->\r\n");
         RIL_FTP_DEBUG(DBG_Buffer,"\r\n<-- send AT command failure -->\r\n");
         return ret;
     }
     else if(0 != ftpParam.data) // ftp open failed!!!
     {
+        APP_DEBUG("\r\n<-- FTP OPEN SET failure, =-%d -->\r\n", ftpParam.data);
         RIL_FTP_DEBUG(DBG_Buffer,"\r\n<-- FTP OPEN SET failure, =-%d -->\r\n", ftpParam.data);
         return QL_RET_ERR_RIL_FTP_OPENFAIL;
     }

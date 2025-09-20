@@ -9,6 +9,7 @@
 #include "dfota_http.h"
 #include "dfota_http_code.h"
 #include "dfota_main.h"
+#include "ql_uart.h"
 
 #ifdef __OCPU_DFOTA_BY_HTTP__  
 #define URL_HEADER_LENGTH    (5)
@@ -16,6 +17,26 @@ extern ST_GprsConfig  Fota_gprsCfg;
 extern u8 Fota_apn[10];
 extern u8 Fota_userid[10];
 extern u8 Fota_passwd[10];
+
+
+#define DEBUG_ENABLE 1
+#if DEBUG_ENABLE > 0
+#define DEBUG_PORT  UART_PORT1
+#define DBG_BUF_LEN   1024
+static char DBG_BUFFER[DBG_BUF_LEN];
+#define APP_DEBUG(FORMAT,...) {\
+    Ql_memset(DBG_BUFFER, 0, DBG_BUF_LEN);\
+    Ql_sprintf(DBG_BUFFER,FORMAT,##__VA_ARGS__); \
+    if (UART_PORT2 == (DEBUG_PORT)) \
+    {\
+        Ql_Debug_Trace(DBG_BUFFER);\
+    } else {\
+        Ql_UART_Write((Enum_SerialPort)(DEBUG_PORT), (u8*)(DBG_BUFFER), Ql_strlen((const char *)(DBG_BUFFER)));\
+    }\
+}
+#else
+#define APP_DEBUG(FORMAT,...) 
+#endif
 
 #if UPGRADE_APP_DEBUG_ENABLE > 0
 extern char FOTA_DBGBuffer[DBG_BUF_LEN];
@@ -74,6 +95,7 @@ bool HTTP_IsHttpServer(u8* URL)
 
 s32 HTTP_DfotaMain(u8 contextId, u8* URL)
 {
+    contextId = 0;
     s32 ret;
     bool retValue;
     bool httpDecodeURL;
@@ -90,28 +112,45 @@ s32 HTTP_DfotaMain(u8 contextId, u8* URL)
      /*****************************************************************
        config the GPRS , set the APN.
     ******************************************************************/
-    Ql_memset(&Fota_gprsCfg,0x00, sizeof(Fota_gprsCfg));
-    Ql_strcpy(Fota_gprsCfg.apnName, Fota_apn);
-    Ql_strcpy(Fota_gprsCfg.apnUserId, Fota_userid);
-    Ql_strcpy(Fota_gprsCfg.apnPasswd, Fota_passwd);
-    Fota_gprsCfg.authtype = 0;   
-    ret = Ql_GPRS_Config(contextId, &Fota_gprsCfg);     
-    UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--Ql_GPRS_Config (RET =%d) -->\r\n", ret);
-    FOTA_DBG_PRINT("<-- Config GPRS -->\r\n");
-    ret = Ql_GPRS_ActivateEx(contextId, TRUE);
-    if(GPRS_PDP_SUCCESS != ret && GPRS_PDP_ALREADY != ret)
-    {
+    contextId = Ql_GPRS_GetPDPContextId();
 
-        FOTA_UPGRADE_IND(UP_UPGRADFAILED,0,retValue);
-        UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--GPRS ACTIVATE FAILD return(err =%d)-->\r\n", ret);
-        FOTA_DBG_PRINT("<-- Fail to activate GPRS -->\r\n");
-        return -1;
+    char myResponse[200] = {0};
+    Ql_sprintf(myResponse,"<-- available contextid = %d -->\r\n",contextId);
+    FOTA_DBG_PRINT(myResponse);
+
+    if (contextId == 1 || contextId == 0) {
+        FOTA_DBG_PRINT("<-- GPRS already active -->\r\n");
     }
+    else{
+        contextId = 0;
+        Ql_memset(&Fota_gprsCfg,0x00, sizeof(Fota_gprsCfg));
+        Ql_strcpy(Fota_gprsCfg.apnName, Fota_apn);
+        Ql_strcpy(Fota_gprsCfg.apnUserId, Fota_userid);
+        Ql_strcpy(Fota_gprsCfg.apnPasswd, Fota_passwd);
+        Fota_gprsCfg.authtype = 0;   
+        ret = Ql_GPRS_Config(contextId, &Fota_gprsCfg);     
+        UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--Ql_GPRS_Config (RET =%d) -->\r\n", ret);
+        FOTA_DBG_PRINT("<-- Config GPRS -->\r\n");
+        UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--gprs context (contextId =%d) -->\r\n", contextId);
+        ret = Ql_GPRS_ActivateEx(contextId, TRUE);
+        if(GPRS_PDP_SUCCESS != ret && GPRS_PDP_ALREADY != ret)
+        {
+
+            FOTA_UPGRADE_IND(UP_UPGRADFAILED,0,retValue);
+            UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--GPRS ACTIVATE FAILD return(err =%d)-->\r\n", ret);
+            FOTA_DBG_PRINT("<-- Fail to activate GPRS -->\r\n");
+            return -1;
+        }
+    }
+
+    
     UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--GPRS ACTIVATE successfully(%d) -->\r\n", ret);
     FOTA_DBG_PRINT("<-- Successfully activate GPRS -->\r\n");
     
     http_initialize();
     httpContext_p->socketid = Ql_SOC_CreateEx(contextId,SOC_TYPE_TCP, Ql_OS_GetActiveTaskId(), Httpcallback_SOC_func);
+    APP_DEBUG("CONTEXT ID conected to =  %d",contextId);
+    Ql_Sleep(5000);
     if(httpContext_p->socketid <0)
     {
         FOTA_UPGRADE_IND(UP_UPGRADFAILED,0,retValue);
@@ -120,6 +159,9 @@ s32 HTTP_DfotaMain(u8 contextId, u8* URL)
         return -1;
     }
     UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--Create socket successfully(%d) -->\r\n", ret);
+    Ql_sprintf(myResponse,"<-- socketid  that was connected = %d -->\r\n",httpContext_p->socketid);
+    FOTA_DBG_PRINT(myResponse);
+    FOTA_DBG_PRINT("<-- Create socket successfull -->\r\n");
 
     pUserName = Ql_strstr(URL, "@");
     if(NULL == pUserName)// http URL :   http://23.11.67.89/file/xxx.bin@userName:passowrd
@@ -155,7 +197,8 @@ s32 HTTP_DfotaMain(u8 contextId, u8* URL)
             FOTA_DBG_PRINT("<--Convert Ip Address successfully,m_ipaddress=");
             FOTA_DBG_PRINT(httpContext_p->hostipAddres);
             FOTA_DBG_PRINT(" -->\r\n");
-            http_GetImagefilefromServer();         
+            http_GetImagefilefromServer();  
+            //http_GetImagefilefromServerAsync();       
         }
         else
         {
@@ -219,7 +262,45 @@ void http_GetImagefilefromServer()
     bool retValue;
     HttpMainContext_t *httpContext_p  = &httpMainContext;
     
-    ret = Ql_SOC_ConnectEx(httpContext_p->socketid, (u32)(httpContext_p->hostipAddres), httpContext_p->hostport, TRUE);
+    
+
+    FOTA_DBG_PRINT("<-- getting file from server  -->\r\n");
+
+    char myResponse[200] = {0};
+    Ql_sprintf(myResponse,
+        "<-- data to convert = %d-%d-%d-%d, hostPort=%d !-->\r\n",
+        httpContext_p->hostipAddres[0],
+        httpContext_p->hostipAddres[1],
+        httpContext_p->hostipAddres[2],
+        httpContext_p->hostipAddres[3],
+        httpContext_p->hostport);
+    FOTA_DBG_PRINT(myResponse);
+    
+    Ql_sprintf(myResponse," socketId used =%d, port used = %u !-->\r\n",httpContext_p->socketid,httpContext_p->hostport);
+    FOTA_DBG_PRINT(myResponse);
+    
+    u8 my_ipAddr[4];
+    my_ipAddr[0] = httpContext_p->hostipAddres[0];
+    my_ipAddr[1] = httpContext_p->hostipAddres[1];
+    my_ipAddr[2] = httpContext_p->hostipAddres[2];
+    my_ipAddr[3] =httpContext_p->hostipAddres[3];
+
+    Ql_Sleep(1000);
+    ret = Ql_SOC_ConnectEx(httpContext_p->socketid, (u32)&my_ipAddr, httpContext_p->hostport, TRUE);
+    Ql_Sleep(5000);
+
+    Ql_sprintf(myResponse,"connection response =%d, socketId used =%d, port used = %u !-->\r\n",ret,httpContext_p->socketid,httpContext_p->hostport);
+    FOTA_DBG_PRINT(myResponse);
+    Ql_Sleep(1000);
+
+    UPGRADE_APP_DEBUG(FOTA_DBGBuffer,
+    "<-- host ipaddress = %d.%d.%d.%d, hostPort=%d !-->\r\n",
+    httpContext_p->hostipAddres[0],
+    httpContext_p->hostipAddres[1],
+    httpContext_p->hostipAddres[2],
+    httpContext_p->hostipAddres[3],
+    httpContext_p->hostport);
+
     if(SOC_SUCCESS != ret)
     {
         FOTA_UPGRADE_IND(UP_UPGRADFAILED,0,retValue);
@@ -258,6 +339,10 @@ void http_GetImagefilefromServer()
     return;
         
 }
+
+
+
+
 
 
 s32 http_SendHttpGetHead( s32 socketId)
@@ -752,6 +837,7 @@ void Callback_GetIpByHostName(u8 contexId, u8 requestId, s32 errCode,  u32 ipAdd
         }
         Ql_memcpy(httpContext_p->hostipAddres,ipAddr, 4);
         http_GetImagefilefromServer();
+       // http_GetImagefilefromServerAsync();
     }
     else
     {

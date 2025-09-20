@@ -195,6 +195,7 @@ static void CallBack_UART_Hdlr(Enum_SerialPort port, Enum_UARTEventType msg, boo
 					Ql_memset(m_URL_Buffer, 0, URL_LEN);
 					
 					//http://hostname:port/filePath/fileName
+					
 					Ql_sprintf(m_URL_Buffer, "%s%s",APP_PACK_URL,p);
 					APP_DEBUG("\r\n<-- URL:%s-->\r\n",m_URL_Buffer);
 					

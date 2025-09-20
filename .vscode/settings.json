@@ -7,6 +7,13 @@
         "sms_command.h": "c",
         "ql_type.h": "c",
         "ql_stdlib.h": "c",
-        "ql_trace.h": "c"
+        "ql_trace.h": "c",
+        "custom_feature_def.h": "c",
+        "ql_error.h": "c",
+        "data_types.h": "c",
+        "ril_telephony.h": "c",
+        "ql_gprs.h": "c",
+        "ril_location.h": "c",
+        "dfota_main.h": "c"
     }
 }

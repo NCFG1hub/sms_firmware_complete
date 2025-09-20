@@ -39,7 +39,9 @@ s32 Ql_DFOTA_StartUpgrade(u8* url, ST_GprsConfig* apnCfg, Callback_Upgrade_State
         FOTA_DBG_PRINT("Fail to get pdp context,the module will use context 1\r\n");
         ret = 1;
     }
-    contextId = (u8)ret;
+    //contextId = (u8)ret;
+
+    contextId = 0;
 
     /*---------------------------------------------------*/
     Ql_memset((void *)(&FotaConfig), 0, sizeof(ST_FotaConfig)); 

@@ -12,11 +12,16 @@
 #include "ql_fs.h";
 #include "ql_error.h"
 #include "ql_time.h"
+#include "ql_gprs.h"
+
+
 
 
 char *my_strtok(char *str, const char *delim);
 void extract_key_value(const char *src, const char *key, char *dest, int size, char endDelim);
 s32 saveBytesToFlash(char* fileName,char* data,u32 length);
+
+char userPhone[20] = {0};
 
 #define DBG_PORT UART_PORT1
 #define APP_DEBUG(FMT, ...) do { \
@@ -84,22 +89,27 @@ static void handle_add_command(const char* sender, const char* body, DeviceConfi
     bytesRead = readFromFlashString("pwd.txt",savedPassword,250);
     savedPassword[bytesRead] = "\0";
 
-    if(!savedPassword){ // if no password was saved, assume that the password is all zero
+    if(bytesRead <= 0){ // if no password was saved, assume that the password is all zero
          APP_DEBUG("there is no saved password ");
          Ql_strncpy(savedPassword,"000000\0",Ql_strlen("000000\0"));
     }
 
     char receivedOldPassword[25];
     char receivedNewPassword[25];
+
+    Ql_memset(receivedOldPassword,0,sizeof(receivedOldPassword));
+    Ql_memset(receivedNewPassword,0,sizeof(receivedNewPassword));
     
     char* rawSmsData = my_strtok(body,",");
     rawSmsData = rawSmsData + Ql_strlen(rawSmsData) + 1; // advance the pointer to read the old password
     char* readOldPassword = my_strtok(rawSmsData,",");
     Ql_strncpy(receivedOldPassword,readOldPassword,Ql_strlen(readOldPassword)); // save the old password in an array
+    receivedOldPassword[Ql_strlen(readOldPassword)] = '\0';
 
     rawSmsData = readOldPassword + Ql_strlen(readOldPassword) + 1; // advance the pointer to read the new password
     char* readNewPassword = my_strtok(rawSmsData,",");
     Ql_strncpy(receivedNewPassword,readNewPassword,Ql_strlen(readNewPassword)); // save the new password in an array
+    receivedNewPassword[Ql_strlen(readNewPassword)] = '\0';
 
     APP_DEBUG("saved password = %s,  old password = %s, new password = %s\r\n",savedPassword,receivedOldPassword,receivedNewPassword);
 
@@ -138,8 +148,8 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
 
     char users[500];
     u32 bytesRead = 0;
+    Ql_memset(g_cfg->users,0,sizeof(g_cfg->users));
     bytesRead = readFromFlashString("user.txt",g_cfg->users,200);
-    saveBytesToFlash("userCount.txt",g_cfg->userCount,2);
 
     APP_DEBUG("saved users = %s,  total users = %d\r\n",g_cfg->users,g_cfg->userCount);
 
@@ -204,15 +214,12 @@ static void handle_adduser_command(const char* sender, const char* body, DeviceC
     Ql_strcat(allNewUser,g_cfg->users);
     Ql_strcat(allNewUser,",");
     Ql_strcat(allNewUser,formatedUser);
-
-    if (saveBytesToFlash("user.txt",allNewUser,Ql_strlen(allNewUser)) == 0) {
-        char msg[80];
-        Ql_sprintf(msg, "User added %s", formatedUser);
-        saveBytesToFlash("userCount.txt",g_cfg->userCount,2); // update the total number of user saved
-        sms_reply(sender, msg);
-    } else {
-        sms_reply(sender, "Failed to save new user");
-    }
+    
+    saveBytesToFlash("user.txt",allNewUser,Ql_strlen(allNewUser));
+    char msg[80];
+    Ql_sprintf(msg, "User added %s", formatedUser);
+    saveBytesToFlash("userCount.txt",g_cfg->userCount,2); // update the total number of user saved
+    sms_reply(sender, msg);
 }
 
 /* === Handle Add Unit Name SMS Command === */
@@ -604,6 +611,26 @@ static void handle_time_command(const char* sender, const char* body, DeviceConf
 
 
 
+static void handle_upgrade_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
+    
+     APP_DEBUG("\r\n<-- running remote upgrade on link %s -->\r\n",g_cfg->upgradeLink);
+
+     ST_GprsConfig apnCfg;
+     Ql_memcpy(apnCfg.apnName,	g_cfg->apn, Ql_strlen(g_cfg->apn));
+     Ql_memcpy(apnCfg.apnUserId, g_cfg->apnUser, Ql_strlen(g_cfg->apnUser));
+     Ql_memcpy(apnCfg.apnPasswd, g_cfg->apnPass, Ql_strlen(g_cfg->apnPass));
+
+     Ql_memset(userPhone,0,sizeof(userPhone));
+     Ql_strncpy(userPhone,sender,Ql_strlen(sender));
+     userPhone[Ql_strlen(sender)] = '\0';
+     g_cfg->isRunUpgrade = 1;
+     APP_DEBUG("upgrade started %s \r\n",userPhone);
+}
+
+
+
+
+
 
 /* === Handle SMS Receaving Phone Number SMS Command === */
 static void handle_sms_command(const char* sender, const char* body, DeviceConfig *g_cfg) {
@@ -912,7 +939,7 @@ static void handle_trip_command(const char* sender, const char* body, DeviceConf
         char tripData[1] = {0};
         tripData[0] = 0;
         saveBytesToFlash("trip.txt",tripData,Ql_strlen(tripData)); 
-        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH);   // set GPIO1 = HIGH
+       // Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH);   // set GPIO1 = HIGH
         sms_reply(sender, "Trip stopped");
 
     } else if (Ql_strcmp(cmd, "TRIP,NOW,1") == 0) {
@@ -920,7 +947,7 @@ static void handle_trip_command(const char* sender, const char* body, DeviceConf
         char tripData[1] = {0};
         tripData[0] = 1;
         saveBytesToFlash("trip.txt",tripData,Ql_strlen(tripData)); 
-        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW);   // set GPIO1 = HIGH
+       // Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW);   // set GPIO1 = HIGH
         get_trip_summary(tripSummary, sizeof(tripSummary));
         sms_reply(sender, tripSummary);
 
@@ -1067,7 +1094,7 @@ static void handle_disable_command(const char* sender, const char* body, DeviceC
         vehicleDisabled[0] = g_cfg->vehicleDisabled;
         saveBytesToFlash("vehicleDisabled.txt",vehicleDisabled,Ql_strlen(vehicleDisabled));
         Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); //turn onn the relay
-        sms_reply(sender, "Vehicle immobilized");
+        sms_reply(sender, "Vehicle mobilized");
 
     } else if (Ql_strcmp(cmd, "OFF") == 0 || Ql_strcmp(cmd, "off") == 0) {
         g_cfg->vehicleDisabled = 0;
@@ -1075,8 +1102,8 @@ static void handle_disable_command(const char* sender, const char* body, DeviceC
         char vehicleDisabled[1] = {0};
         vehicleDisabled[0] = g_cfg->vehicleDisabled;
         saveBytesToFlash("vehicleDisabled.txt",vehicleDisabled,Ql_strlen(vehicleDisabled));
-        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); // turn off the relay
-        sms_reply(sender, "Vehicle enabled");
+        Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW); // turn off the relay
+        sms_reply(sender, "Vehicle immobilized");
 
     } else {
         sms_reply(sender, "Invalid DISABLE format");
@@ -1251,7 +1278,7 @@ static void handle_setImei(const char* sender, const char* body, DeviceConfig *g
     }
 
     rawDataFirst = myImei + Ql_strlen(myImei) + 1;
-    char* factoryPassword = my_strtok(rawDataFirst,",");
+    char* factoryPassword = my_strtok(rawDataFirst,";");
     Ql_strncpy(myPassword,factoryPassword,Ql_strlen(factoryPassword));
     myPassword[Ql_strlen(factoryPassword)] = '\0';
     if(factoryPassword  == NULL){
@@ -1274,6 +1301,62 @@ static void handle_setImei(const char* sender, const char* body, DeviceConfig *g
     }
     
 }
+
+
+
+static void handle_setIp(const char* sender, const char* body, DeviceConfig *g_cfg) {
+    APP_DEBUG("seen command inside set ip function = %s\r\n", body);
+    char cmd[250] = {0};
+    char recvIp[200] ={0};
+    char myPassword[200] = {0};
+    Ql_strncpy(cmd, body, Ql_strlen(body));
+    cmd[Ql_strlen(body)] = '\0';
+    char* rawDataFirst =  my_strtok(cmd,",");
+    if(rawDataFirst  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+
+    rawDataFirst = rawDataFirst + Ql_strlen(rawDataFirst) + 1;
+    char* myIp = my_strtok(rawDataFirst,",");
+    Ql_strncpy(recvIp,myIp,Ql_strlen(myIp));
+    recvIp[Ql_strlen(myIp)] = '\0';
+    if(myIp  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+
+    rawDataFirst = myIp + Ql_strlen(myIp) + 1;
+    char* factoryPassword = my_strtok(rawDataFirst,";");
+    Ql_strncpy(myPassword,factoryPassword,Ql_strlen(factoryPassword));
+    myPassword[Ql_strlen(factoryPassword)] = '\0';
+    if(factoryPassword  == NULL){
+         sms_reply(sender, "invalid format");
+         return;
+    }
+    APP_DEBUG("seen password is %s\r\n", myPassword);
+    APP_DEBUG("seen ip is %s\r\n", recvIp);
+    
+    if(Ql_strcmp(myPassword,"1253633738484") == 0){
+        saveBytesToFlash("ip.txt",recvIp,Ql_strlen(recvIp));
+        Ql_memset(g_cfg->ipAddress,0,sizeof(g_cfg->ipAddress));
+        Ql_strncpy(g_cfg->ipAddress,recvIp,Ql_strlen(recvIp)); 
+        g_cfg->ipAddress[Ql_strlen(recvIp)] = '\0';
+
+        char updateLink[100];
+        Ql_sprintf(updateLink,"http://%s:%d/firmware/firmware.bin\0",g_cfg->ipAddress,5000);
+        Ql_strncpy(g_cfg->upgradeLink,updateLink,Ql_strlen(updateLink));
+        char msg[200];
+        Ql_sprintf(msg, "ip successfully set to %s", recvIp);
+        sms_reply(sender, msg);
+    }
+    else{
+        sms_reply(sender, "Not authorized");
+    }
+    
+}
+
+
 
 
 /* === Handle WWW SMS Command === */
@@ -1428,6 +1511,8 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
             g_cfg->mqtt_state =  STATE_NW_QUERY_STATE; // set mqtt to restart
             Ql_sprintf(myMessage,"GPRS OK, MQTT auth/connecting \n imei = %s \n", g_cfg->imei);
             sms_reply(sender, myMessage);
+            Ql_Sleep(5000);
+            Ql_Reset(0);
         } else {
             
             Ql_sprintf(myMessage,"Settings saved, RUN=0 (not connecting) \n imei = %s \n", g_cfg->imei);
@@ -1454,6 +1539,7 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
 
     /* === Convert to Uppercase For Case-Insensitive Compare === */
     char bodyUpper[1024];
+    Ql_memset(bodyUpper,0,sizeof(bodyUpper));
     Ql_strncpy(bodyUpper, smsContent,Ql_strlen(smsContent));
     /*for (char* p = bodyUpper; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') *p -= 32;
@@ -1502,6 +1588,10 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     } 
     else if (Ql_strcmp(commandHead, "TIME") == 0) {
         handle_time_command(smsSender, smsContent, g_cfg);
+    } 
+    else if (Ql_strcmp(commandHead, "UPGRADE") == 0 || Ql_strcmp(commandHead, "upgrade") == 0 || Ql_strcmp(commandHead, "Upgrade") == 0) {
+        handle_upgrade_command(smsSender, smsContent, g_cfg);
+        return;
     } 
     else if (Ql_strcmp(commandHead, "SMS") == 0) {
         handle_sms_command(smsSender, smsContent, g_cfg);
@@ -1554,8 +1644,11 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     else if (Ql_strcmp(commandHead, "HEARTBEAT") == 0) {
         handle_heartbeat_command(smsSender, smsContent, g_cfg);
     }  
-    if (Ql_strcmp(commandHead, "IMEI") == 0) {
+    else if (Ql_strcmp(commandHead, "IMEI") == 0) {
         handle_setImei(smsSender, smsContent, g_cfg);
+    } 
+    else if (Ql_strcmp(commandHead, "IP") == 0) {
+        handle_setIp(smsSender, smsContent, g_cfg);
     } 
     else {
         char bodyUpper2[1024];
@@ -1634,7 +1727,7 @@ s32 saveBytesToFlash(char* fileName,char* data,u32 length){
     s32 fileHandle = Ql_FS_Open(fileName, QL_FS_CREATE_ALWAYS);
     u32 bytesWritten = 0;
     char dataToSave[length + 1];
-    Ql_memset(dataToSave,0,Ql_strlen(dataToSave));
+    Ql_memset(dataToSave,0,sizeof(dataToSave));
     Ql_memcpy(dataToSave,data,length);
     dataToSave[length] = '\0';
     s32 resp = Ql_FS_Write(fileHandle,dataToSave,(length + 1), &bytesWritten);

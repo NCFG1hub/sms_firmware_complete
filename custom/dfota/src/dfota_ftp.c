@@ -14,8 +14,30 @@
 #include "dfota_main.h"
 #include "dfota_http.h"
 #include "ql_dfota.h"
+#include "ql_uart.h"
 
 #ifdef __OCPU_DFOTA_BY_FTP__
+
+#define DEBUG_ENABLE 1
+#if DEBUG_ENABLE > 0
+#define DEBUG_PORT  UART_PORT1
+#define DBG_BUF_LEN   1024
+static char DBG_BUFFER[DBG_BUF_LEN];
+#define APP_DEBUG(FORMAT,...) {\
+    Ql_memset(DBG_BUFFER, 0, DBG_BUF_LEN);\
+    Ql_sprintf(DBG_BUFFER,FORMAT,##__VA_ARGS__); \
+    if (UART_PORT2 == (DEBUG_PORT)) \
+    {\
+        Ql_Debug_Trace(DBG_BUFFER);\
+    } else {\
+        Ql_UART_Write((Enum_SerialPort)(DEBUG_PORT), (u8*)(DBG_BUFFER), Ql_strlen((const char *)(DBG_BUFFER)));\
+    }\
+}
+#else
+#define APP_DEBUG(FORMAT,...) 
+#endif
+
+
 #define URL_HEADER_LENGTH    (5)
 #define FTP_CONNECT_ATTEMPTS        (5)     // max 5 times for attempt to connect, or restart module
 static u8 Contextid;
@@ -150,14 +172,17 @@ static void FTP_Program(void)
     }
 
     ret = RIL_FTP_QFTPCFG(4, (u8*)APP_BINFILE_PATH); 
+    APP_DEBUG("app bin file path = %s \r\n",APP_BINFILE_PATH);
     UPGRADE_APP_DEBUG(FOTA_DBGBuffer, "<-- Set local storage, ret=%d -->\r\n", ret);
     FOTA_DBG_PRINT("<-- Set local storage -->\r\n");
 
     ret = RIL_FTP_QFTPPATH(FilePath);   
+    APP_DEBUG("file path = %s \r\n",FilePath);
     UPGRADE_APP_DEBUG(FOTA_DBGBuffer, "<-- Set remote path, ret=%d -->\r\n", ret);
     FOTA_DBG_PRINT("<-- Set remote path -->\r\n");
 
     ret = RIL_FTP_QFTPSIZE(appBin_fName,&fileSize);
+    APP_DEBUG("file name = %s \r\n",appBin_fName);
     UPGRADE_APP_DEBUG(FOTA_DBGBuffer, "<-- Get file Size, ret=%d,fileSize=%d -->\r\n", ret,fileSize);
     FOTA_DBG_PRINT("<-- Get file Size -->\r\n");
 
@@ -186,6 +211,7 @@ static void FTP_Program(void)
         // Inform the caller of FTP downloading failed
         Ql_OS_SendMessage(main_task_id, MSG_ID_FTP_RESULT_IND, FTP_RESULT_FAILED, ret);
     }
+    APP_DEBUG("downloading file = %s \r\n",appBin_fName);
     FOTA_DBG_PRINT("<-- Downloading FTP file -->\r\n");
 }
 
@@ -530,6 +556,9 @@ bool FTP_DecodeURL(u8 *URL, s32 URLlength, u8 *serverAdd, u8* filePath,  u8* bin
     FOTA_DBG_PRINT(Ftp_userName);
     FOTA_DBG_PRINT(" user password =");
     FOTA_DBG_PRINT(Ftp_Possword);
+    char myMessage[100];
+    Ql_sprintf(myMessage," server port = %d \r\n",*serverPort);
+    FOTA_DBG_PRINT(myMessage);
     FOTA_DBG_PRINT("  serverPort=xxx-->\r\n");
     return ret;
 }

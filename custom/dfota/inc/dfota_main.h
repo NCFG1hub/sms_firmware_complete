@@ -36,6 +36,7 @@
 #include "ql_type.h"
 #include "ql_uart.h"
 #include "ql_gpio.h"
+#include "ql_gprs.h"
 
 /******************************************************************************
 * Macros
@@ -65,13 +66,13 @@
 
 typedef enum{
     UP_FOTAINITFAIL, // Fota init failed.
-    UP_START,//Fota upgrade start£¬
+    UP_START,//Fota upgrade startï¿½ï¿½
     UP_URLDECODEFAIL,
     UP_CONNECTING,// connect to the server
     UP_CONNECTED,// connect ok
     UP_GETTING_FILE,// download the bin file
     UP_GET_FILE_OK,// the bin file get ok,
-    UP_SYSTEM_REBOOT,//before system reboot£¬reporting this state.
+    UP_SYSTEM_REBOOT,//before system rebootï¿½ï¿½reporting this state.
     UP_UPGRADFAILED,
     FOTA_STATE_END
 }Upgrade_State;

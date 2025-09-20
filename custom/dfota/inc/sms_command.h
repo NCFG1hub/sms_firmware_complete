@@ -36,6 +36,8 @@ static void handle_name_command(const char* sender, const char* body, DeviceConf
 static void handle_adduser_command(const char* sender, const char* body, DeviceConfig *devConfig);
 static void handle_add_command(const char* sender, const char* body, DeviceConfig *devConfig);
 static bool is_authorized(const char* number, DeviceConfig *g_cfg); 
+static void handle_upgrade_command(const char* sender, const char* body, DeviceConfig *g_cfg);
+static void handle_setIp(const char* sender, const char* body, DeviceConfig *g_cfg);
 
 s32 readFromFlashString(char* fileName,char* data,u32 length);
 s32 readFromFlash(char* fileName,char* data,u32 length);
