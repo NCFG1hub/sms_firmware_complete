@@ -289,15 +289,20 @@ static ST_CellInfo g_cell;
 static u8 m_mqtt_state = STATE_NW_QUERY_STATE;
 static u8 last_m_mqtt_state = STATE_NW_QUERY_STATE;
 
+char heartBeatData[1024];
 char deviceData[1024];
 char commandData[1024];
 char deviceAlarm[1024];
 char receivedSms[1024];
 char senderPhone[30];
 u16 isDeviceData = 0;
+u16 isHeartBeatData = 0;
 u16 isDeviceAlarm = 0;
 u16 iscommandData = 0;
 u16 isNewSmsReceived = 0;
+
+
+u32 heartBeatPushFailureCount = 0;
 
 u16 countPublishFailure = 0;
 u16 countMqttResponseWaitTime = 0;
@@ -702,11 +707,12 @@ void proc_main_task(s32 taskId)
             					else
             					{
             						APP_DEBUG("//<Publish messages to MQTT server failure,error = %d\r\n",mqtt_urc_param_ptr->result);
-                                    if(countPublishFailure > 10){
+                                    if(countPublishFailure > 30){
                                         countPublishFailure = 0;
                                         if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
                                              last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                                         m_mqtt_state = STATE_MQTT_CONN;
+                                        Ql_Reset(0);
                                     }
             					}
                 		    }
@@ -957,8 +963,8 @@ static void mqtt_recv(u8* buffer,u32 length)
                  iscommandData = 1;
             }
             else if(Ql_memcmp(myAction,setInitOrdometer,sizeof(myAction)) == 0){
-                 int myOrdorMeter = extract_int(payload, "ordormeter");
-                 devConfig.odometerKm = myOrdorMeter;
+                 int myodoMeter = extract_int(payload, "odometer");
+                 devConfig.odometerKm = myodoMeter;
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setInitOrdometer,devConfig.imei);
                  iscommandData = 1;
@@ -1012,7 +1018,7 @@ static void mqtt_recv(u8* buffer,u32 length)
 
 static void Pin_Check_Callback_Timer(u32 timerId, void* param){
     if(PIN_TIMER_ID == timerId){
-        lastLocationPush = lastLocationPush + 5000;
+        lastLocationPush = lastLocationPush + PIN_TIMER_PERIOD; // increase everytime there is pin check timer event
         APP_DEBUG("report speed = %d, time elapsed = %u \r\n",devConfig.rptSec,lastLocationPush);
         devConfig.ignationLevel = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
         devConfig.ignationStatus = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
@@ -1035,6 +1041,8 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
             //http_downfile_timer(FotaUpdate_Start_TmrId, NULL);
         }
 
+
+
         if(devConfig.ignitionReporting == 1){
               if(devConfig.ignationLevel != devConfig.lastIgnationLevel){
                     Ql_memset(deviceAlarm,0,sizeof(deviceAlarm));
@@ -1055,7 +1063,7 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
                                     "\"ignation\":%d,"
                                     "\"vehicleDisabled\":%d,"
                                     "\"external\":%d,"
-                                    "\"ordor\":%d"
+                                    "\"odo\":%d"
                                 "}",
                                 devConfig.imei,
                                 gnssData.utcTime,
@@ -1079,8 +1087,49 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
               devConfig.lastIgnationLevel = devConfig.ignationLevel;
         }
 
+
+        Ql_memset(heartBeatData,0,sizeof(heartBeatData));
+        Ql_sprintf(heartBeatData,
+            "{"
+                "\"action\": \"heartBeatPacket\","
+                "\"imei\": \"%s\","
+                        "\"utcTime\":%2f,"
+                        "\"longitude\":%8f,"
+                        "\"longitudeDirection\":\"%c\","
+                        "\"latitude\":%8f,"
+                        "\"latitudeDirection\":\"%c\","
+                        "\"speed\":%6f,"
+                        "\"courseOverGround\":%6f,"
+                        "\"deviceDate\":%d,"
+                        "\"magneticVariation\":%2f,"
+                        "\"battery\":%f,"
+                        "\"ignation\":%d,"
+                        "\"vehicleDisabled\":%d,"
+                        "\"external\":%d,"
+                        "\"odo\":%d"
+                    "}",
+                    devConfig.imei,
+                    gnssData.utcTime,
+                    gnssData.longitude,
+                    gnssData.longDirection,
+                    gnssData.latitude,
+                    gnssData.latDirection,
+                    gnssData.speed,
+                    gnssData.courseOverGround,
+                    gnssData.deviceDate,
+                    gnssData.magneticVariation,
+                    batteryLevel,  // battery placeholder
+                    devConfig.ignationLevel,  // ignation placeholder
+                    devConfig.vehicleDisabled, // vehicleDisabled
+                    1,   // external placeholder
+                    devConfig.odometerKm
+            );
+
+        isHeartBeatData = 1;
+    }
+
         
-    } 
+    
 }
 
 
@@ -1171,9 +1220,10 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 {
                     //APP_DEBUG("//<Ali Platform configure failure,ret = %d\r\n",ret);
                     configTrial = configTrial + 1;
-                    if(configTrial >= 30){
+                    if(configTrial >= 40){
                         m_mqtt_state = STATE_NW_QUERY_STATE;
                         configTrial = 0;
+                        Ql_Reset(0);
                     }
 
                     APP_DEBUG("//<Select version 3.1.1 failure,ret = %d\r\n",ret);
@@ -1198,8 +1248,9 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 {
                     APP_DEBUG("//<Open a MQTT client failure,ret = %d-->\r\n",ret);
                     connectionTrial = connectionTrial + 1;
-                    if(connectionTrial >= 30){
+                    if(connectionTrial >= 40){
                         m_mqtt_state = STATE_NW_QUERY_STATE;
+                        Ql_Reset(0);
                         connectionTrial = 0;
                     }
                     
@@ -1224,9 +1275,11 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 {
                     APP_DEBUG("//<failed to login = %d\r\n",ret);
                     loginTrial = loginTrial + 1;
-                    if(loginTrial >= 30){
+                    if(loginTrial >= 40){
                         m_mqtt_state = STATE_NW_QUERY_STATE;
+                        APP_DEBUG("//<applying for connection again %d\r\n",ret);
                         loginTrial = 0;
+                        Ql_Reset(0);
                     }
                 }
                 break;
@@ -1256,8 +1309,9 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 {
                     APP_DEBUG("//<Subscribe topic failure,ret = %d\r\n",ret);
                     subTrial = subTrial + 1;
-                    if(subTrial > 30){
+                    if(subTrial > 40){
                         subTrial = 0;
+                        Ql_Reset(0);
                     }
                 }
                 break;
@@ -1269,11 +1323,21 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 u8 wasAnyPublish = 0; // checks if there was a publish
                 
                 if(isDeviceData == 1){
-                     if( lastLocationPush >= (devConfig.rptSec * 10000) ){
+                     APP_DEBUG(" last push time = %u \r\n");
+                     APP_DEBUG(" time set = %u \r\n",(devConfig.rptSec * 1000));
+                     if( lastLocationPush >= (devConfig.rptSec * 1000) ){
                           ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceData),deviceData);
                           lastLocationPush = 0;
                           wasAnyPublish = 1;
                      }
+                }
+
+
+                if(isHeartBeatData == 1){
+                     APP_DEBUG(" last push time = %u \r\n");
+                     ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(heartBeatData),heartBeatData);
+                     isHeartBeatData = 0;
+                     wasAnyPublish = 1;
                 }
 
 
@@ -1313,6 +1377,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                         if(countPublishFailure >= 30){
                             RIL_MQTT_QMTCLOSE(connect_id);
                             m_mqtt_state = STATE_NW_QUERY_STATE;
+                            Ql_Reset(0);
                             countPublishFailure = 0;
                         }
                     }
@@ -1332,6 +1397,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 if(countMqttResponseWaitTime > 150){
                     countMqttResponseWaitTime = 0;
                     m_mqtt_state = last_m_mqtt_state;
+                    Ql_Reset(0);
                 }
 			    break;
             }
@@ -1552,7 +1618,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                 "\"battery\":%f,"
                                 "\"trip\":%d,"
                                 "\"external\":%d,"
-                                "\"ordor\":%d"
+                                "\"odo\":%d"
                             "}",
                             devConfig.imei,
                             gnssData.utcTime,
@@ -1593,7 +1659,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                     "\"battery\":%f,"
                                     "\"trip\":%d,"
                                     "\"external\":%d,"
-                                    "\"ordor\":%d"
+                                    "\"odo\":%d"
                                 "}",
                                 devConfig.imei,
                                 gnssData.utcTime,
@@ -1636,7 +1702,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                 "\"battery\":%f,"
                                 "\"trip\":%d,"
                                 "\"external\":%d,"
-                                "\"ordor\":%d"
+                                "\"odo\":%d"
                             "}",
                             devConfig.imei,
                             gnssData.utcTime,
@@ -2405,7 +2471,7 @@ void loadConfig(){
     s32 ret = Ql_FS_Read(fileHandle,serverPort,3, &numberOfBytesRead);
     devConfig.serverPort = (serverPort[0] << 8) | (serverPort[1] & 0xff);
     Ql_FS_Close(fileHandle);
-    APP_DEBUG("server poet = %i total bytes read = %i file handle = %i\r\n",devConfig.serverPort,numberOfBytesRead,fileHandle);
+    APP_DEBUG("server port = %i total bytes read = %i file handle = %i\r\n",devConfig.serverPort,numberOfBytesRead,fileHandle);
     
 
     char rptSec[2] = {0}; // report interval
@@ -2414,7 +2480,8 @@ void loadConfig(){
     ret = Ql_FS_Read(fileHandle,rptSec,3, &numberOfBytesRead);
     devConfig.rptSec = (rptSec[0] << 8) | (rptSec[1] & 0xff);
     Ql_FS_Close(fileHandle);
-    APP_DEBUG("server poet = %i total bytes read = %i file handle = %i\r\n",devConfig.rptSec,numberOfBytesRead,fileHandle);
+    APP_DEBUG("read report speed = %u, %i,%i bytes saved = %u\r\n",devConfig.rptSec,rptSec[0],rptSec[1],numberOfBytesRead);
+    APP_DEBUG("report speed = %i total bytes read = %i file handle = %i\r\n",devConfig.rptSec,numberOfBytesRead,fileHandle);
     
 
     char slpSec[2] = {0}; // sleep interval
@@ -2423,7 +2490,7 @@ void loadConfig(){
     ret = Ql_FS_Read(fileHandle,slpSec,3, &numberOfBytesRead);
     devConfig.slpSec = (slpSec[0] << 8) | (slpSec[1] & 0xff);
     Ql_FS_Close(fileHandle);
-    APP_DEBUG("server poet = %i total bytes read = %i file handle = %i\r\n",devConfig.slpSec,numberOfBytesRead,fileHandle);
+    APP_DEBUG("sleep sec = %i total bytes read = %i file handle = %i\r\n",devConfig.slpSec,numberOfBytesRead,fileHandle);
 
 
     char runMode[1] = {0}; // sleep interval
@@ -3018,6 +3085,7 @@ static bool ftp_Upgrade_States(Upgrade_State state, s32 fileDLPercent)
             UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--Return TRUE, system will reboot, and upgrade  -->\r\n");
             UPGRADE_APP_DEBUG(FOTA_DBGBuffer,"<--Return FLASE, you must invoke Ql_FOTA_Update()  for upgrade !!!-->\r\n");
             FOTA_DBG_PRINT("<--Return TRUE, system will reboot, and upgrade  -->\r\n");
+            Ql_Reset(0);
             return TRUE;// if return TRUE  the module will reboot ,and fota upgrade complete.
             //return FALSE; // if return False,  you must invoke Ql_FOTA_Update()  function before you want to reboot the system.
         }

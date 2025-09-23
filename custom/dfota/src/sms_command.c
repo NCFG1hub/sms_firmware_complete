@@ -1424,16 +1424,21 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         Ql_strcpy(apnUser,apnUserPart);
         apnUser[Ql_strlen(apnUserPart)] = '\0';
         apnUserPart = apnUserPart + Ql_strlen(apnUserPart) + 1;
-        char* appPassPart =  my_strtok(apnUserPart,",");
+        char* appPassPart =  my_strtok(apnUserPart,";");
         Ql_strcpy(apnPass,appPassPart);
 
+        appPassPart = appPassPart + Ql_strlen(appPassPart) + 1;
+
         // Extract rpt, slp, run
+        Ql_memset(temp,0,sizeof(temp));
         extract_key_value(body, "RPT:", temp, sizeof(temp), ';');
         rpt = Ql_atoi(temp);
-
+        
+        Ql_memset(temp,0,sizeof(temp));
         extract_key_value(body, "SLP:", temp, sizeof(temp), ';');
         slp = Ql_atoi(temp);
-
+        
+        Ql_memset(temp,0,sizeof(temp));
         extract_key_value(body, "RUN:", temp, sizeof(temp), ';');
         run = Ql_atoi(temp);
 
@@ -1489,21 +1494,22 @@ static void handle_www_command(const char* sender, const char* body, DeviceConfi
         char serverPort[2] = {0};
         serverPort[0] = g_cfg->serverPort >> 8;
         serverPort[1] = g_cfg->serverPort & 0xff;
-        saveBytesToFlash("serverPort.txt",serverPort,Ql_strlen(serverPort));
+        saveBytesToFlash("serverPort.txt",serverPort,sizeof(serverPort));
 
         char rptSec[2] = {0};
         rptSec[0] = g_cfg->rptSec >> 8;
         rptSec[1] = g_cfg->rptSec & 0xff;
-        saveBytesToFlash("rptSec.txt",rptSec,Ql_strlen(rptSec));
+        s32 noSavedBytes = saveBytesToFlash("rptSec.txt",rptSec,sizeof(rptSec));
+        APP_DEBUG("set report speed = %u, %i,%i bytes saved = %u\r\n",g_cfg->rptSec,rptSec[0],rptSec[1],noSavedBytes);
 
         char slpSec[2] = {0};
         slpSec[0] = g_cfg->slpSec >> 8;
         slpSec[1] = g_cfg->slpSec & 0xff;
-        saveBytesToFlash("slpSec.txt",slpSec,Ql_strlen(slpSec));
+        saveBytesToFlash("slpSec.txt",slpSec,sizeof(slpSec));
 
         char runMode[1] = {0};
         runMode[0] = g_cfg->runMode;
-        saveBytesToFlash("runMode.txt",runMode,Ql_strlen(runMode));
+        saveBytesToFlash("runMode.txt",runMode,sizeof(runMode));
         
         char myMessage[200] = {0};
         /* === Try to connect if RUN == 1 === */
