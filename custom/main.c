@@ -2868,15 +2868,18 @@ void loadConfig(){
     devConfig.deviceTopic[lastIndex] = '\0';
 
 
-    Ql_strncat(devConfig.loginTopic,"device/",Ql_strlen("device/login/"));
+    Ql_strncat(devConfig.loginTopic,"device/",Ql_strlen("device/"));
     Ql_strncat(devConfig.loginTopic,devConfig.imei,Ql_strlen(devConfig.imei));
-    lastIndex =  Ql_strlen("device/login/") + Ql_strlen(devConfig.imei);
+    Ql_strncat(devConfig.loginTopic,"/login\0",Ql_strlen("/login"));
+    lastIndex =  Ql_strlen(devConfig.loginTopic);
     devConfig.loginTopic[lastIndex] = '\0';
 
-    Ql_strncat(devConfig.serverCommandTopic,"device/",Ql_strlen("device/command/"));
+    Ql_strncat(devConfig.serverCommandTopic,"device/",Ql_strlen("device/"));
     Ql_strncat(devConfig.serverCommandTopic,devConfig.imei,Ql_strlen(devConfig.imei));
-    lastIndex =  Ql_strlen("device/command/") + Ql_strlen(devConfig.imei);
-    devConfig.loginTopic[lastIndex] = '\0';
+    Ql_strncat(devConfig.serverCommandTopic,"/responses\0",Ql_strlen("/responses"));
+    lastIndex =  Ql_strlen(devConfig.serverCommandTopic);
+    devConfig.serverCommandTopic[lastIndex] = '\0';
+
 
 
     char myIp[30] = {0};
