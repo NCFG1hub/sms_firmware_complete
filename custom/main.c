@@ -134,8 +134,16 @@ static s32 CUSTOM_AT_RESPONSE_HANDLER(char* line, u32 len, void* userData);
 #define SMS_TIMER_PERIOD     7000
 
 
+#define CONNECTION_TIMER_ID  0x400
+#define CONNECTION_TIMER_PERIOD 900000
+
+
 #define PI 3.14159265358979323846
 #define EARTH_RADIUS 6371000.0  // in meters
+
+
+int isResetIssued = 0;
+int isSleepIssued = 0;
 
 
 /*****************************************************************
@@ -196,6 +204,7 @@ void Callback_GNSS_APGS_Hdlr(char *str_URC);
 static void Gnss_Callback_Timer(u32 timerId, void* param);
 static void Pin_Check_Callback_Timer(u32 timerId, void* param);
 static void SMS_Callback_Timer(u32 timerId, void* param);
+static void Connection_Timer(u32 timerId, void* param);
 static void Watchdog_Init(void);
 
 u32 HexStringToInt(const char* hexStr);
@@ -276,6 +285,10 @@ u32 sub_message_id = 0;
 u8 username[] = "NCFTrack\0";
 
 static u8 test_data[128] =  "hello cloud,this is quectel test code!!!\0"; //<first packet data
+
+static u8 login_topic[128] = "device/login/78489383830945\0"; //<topic
+
+static u8 response_topic[128] = "device/response/78489383830945\0"; //<topic
 
 static u8 device_topic[128] = "device/78489383830945\0"; //<topic
 
@@ -360,7 +373,6 @@ float batteryLevel;
 
 /* end mqttp topics */
     
-    u8 deviceTopic[] = "device/78489383830945\0";
 
 /* mqttp actions */
     u8 trackOnDemand[] = "trackOnDemand\0";
@@ -540,6 +552,14 @@ void proc_main_task(s32 taskId)
     Ql_Timer_Register(SMS_TIMER_ID, SMS_Callback_Timer, NULL);
 	Ql_Timer_Start(SMS_TIMER_ID, SMS_TIMER_PERIOD, TRUE);
 
+    Ql_Timer_Register(CONNECTION_TIMER_ID, Connection_Timer, NULL);
+	Ql_Timer_Start(CONNECTION_TIMER_ID, CONNECTION_TIMER_PERIOD, TRUE);
+   
+   
+
+    
+
+
 
 
 	APP_DEBUG("//<register recv callback,ret = %d\r\n",ret);
@@ -707,13 +727,6 @@ void proc_main_task(s32 taskId)
             					else
             					{
             						APP_DEBUG("//<Publish messages to MQTT server failure,error = %d\r\n",mqtt_urc_param_ptr->result);
-                                    if(countPublishFailure > 30){
-                                        countPublishFailure = 0;
-                                        if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
-                                             last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
-                                        m_mqtt_state = STATE_MQTT_CONN;
-                                        Ql_Reset(0);
-                                    }
             					}
                 		    }
             			    break;
@@ -758,7 +771,7 @@ void proc_main_task(s32 taskId)
                             APP_DEBUG("\r\n<##### Restart the module... #####>\r\n");
                             devConfig.isRunUpgrade = 0;
                             Ql_Sleep(50);
-                            Ql_Reset(0);
+                            //Ql_Reset(0);
                             break;
         		        default:
             		        //APP_DEBUG("<-- Other URC: type=%d\r\n", msg.param1);
@@ -874,8 +887,10 @@ static void mqtt_recv(u8* buffer,u32 length)
     APP_DEBUG("seen payload %s\r\n",payload);
 
 
+    if(Ql_strcmp(myTopic,devConfig.loginTopic) == 0){
 
-    if(Ql_strcmp(myTopic,devConfig.deviceTopic) == 0){  // check if the topic is correct
+    }
+    else if(Ql_strcmp(myTopic,devConfig.serverCommandTopic) == 0){  // check if the topic is correct
 
            /*---------- MQTT CODE FOR USER STARTS HERE ------------------*/
             char myAction[100];
@@ -890,8 +905,14 @@ static void mqtt_recv(u8* buffer,u32 length)
                  iscommandData = 1;
             }
             else if(Ql_memcmp(myAction,setGprsInterval,sizeof(myAction)) == 0){
-                 int myInterval = extract_int(payload, "action");
+                 int myInterval = extract_int(payload, "interval");
                  devConfig.findIntervalMin = myInterval;
+
+                 char findIntervalMin[2] = {0};
+                 findIntervalMin[0] = devConfig.findIntervalMin >> 8;
+                 findIntervalMin[1] =devConfig.findIntervalMin & 0xff; 
+                 saveBytesToFlash("findIntervalMin.txt",findIntervalMin,Ql_strlen(findIntervalMin)); 
+                    
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setGprsInterval,devConfig.imei);
                  iscommandData = 1;  
@@ -909,6 +930,12 @@ static void mqtt_recv(u8* buffer,u32 length)
             else if(Ql_memcmp(myAction,setOverSpeedLimit,sizeof(myAction)) == 0){
                  int mySpeed = extract_int(payload, "speed");
                  devConfig.speedLimitKph = mySpeed;
+
+                 char mySpeedLimitKph[2] = {0};
+                 mySpeedLimitKph[0] = devConfig.speedLimitKph >> 0;
+                 mySpeedLimitKph[1] = devConfig.speedLimitKph & 0xff;
+                 saveBytesToFlash("speedLimitKph.txt",mySpeedLimitKph,Ql_strlen(mySpeedLimitKph));
+
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setOverSpeedLimit,devConfig.imei);
                  iscommandData = 1;  
@@ -930,20 +957,34 @@ static void mqtt_recv(u8* buffer,u32 length)
             else if(Ql_memcmp(myAction,initialize,sizeof(myAction)) == 0){
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",initialize,devConfig.imei);
+
+                 isResetIssued = 0;
+                 
                  //publishMessage(1,myTopic,commandData); 
                  // write command for reboot
                  iscommandData = 1;
             }
             else if(Ql_memcmp(myAction,setSleepMode,sizeof(myAction)) == 0){
-                 int mySleepMode = extract_int(payload, "mode");
-                 devConfig.sleepMode = mySleepMode;
+                 int myIntSleepMode = extract_int(payload, "mode");
+                 devConfig.sleepMode = myIntSleepMode;
+                 char mySleepMode[1] = {0};
+                 mySleepMode[0] = myIntSleepMode;
+                 saveBytesToFlash("sleepMode.txt",mySleepMode,Ql_strlen(mySleepMode));   // Save to flash so it persists after reboot
+                 
+                 isSleepIssued = 1;
+
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setSleepMode,devConfig.imei);
                  iscommandData = 1;
             }
             else if(Ql_memcmp(myAction,outputControl,sizeof(myAction)) == 0){
                  int myOutputControl = extract_int(payload, "control");
-                 devConfig.outputControl = myOutputControl;
+                 devConfig.vehicleDisabled = myOutputControl;
+                 char vehicleDisabled[1] = {0};
+                 vehicleDisabled[0] = devConfig.vehicleDisabled;
+                 saveBytesToFlash("vehicleDisabled.txt",vehicleDisabled,Ql_strlen(vehicleDisabled));
+                 Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_LOW); // turn off the relay
+
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",outputControl,devConfig.imei);
                  iscommandData = 1;
@@ -955,16 +996,22 @@ static void mqtt_recv(u8* buffer,u32 length)
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",armDisarm,devConfig.imei);
                  iscommandData = 1;
             }
-            else if(Ql_memcmp(myAction,setGprsIntervalOnStop,sizeof(myAction)) == 0){
+            else if(Ql_memcmp(myAction,setGprsIntervalOnStop,sizeof(myAction)) == 0){ // visit latter
                  int myGprsIntervalOnStop = extract_int(payload, "interval");
                  devConfig.tripReporting = myGprsIntervalOnStop;
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setGprsIntervalOnStop,devConfig.imei);
                  iscommandData = 1;
             }
-            else if(Ql_memcmp(myAction,setInitOrdometer,sizeof(myAction)) == 0){
+            else if(Ql_memcmp(myAction,setInitOrdometer,sizeof(myAction)) == 0){ 
                  int myodoMeter = extract_int(payload, "odometer");
                  devConfig.odometerKm = myodoMeter;
+
+                 char odometerKm[2] = {0};
+                 odometerKm[0] = devConfig.odometerKm >> 8;
+                 odometerKm[1] = devConfig.odometerKm & 0xff;
+                 saveBytesToFlash("odometerKm.txt",odometerKm,Ql_strlen(odometerKm));
+
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setInitOrdometer,devConfig.imei);
                  iscommandData = 1;
@@ -973,11 +1020,18 @@ static void mqtt_recv(u8* buffer,u32 length)
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",rebootDevice,devConfig.imei);
                  //publishMessage(1,myTopic,commandData);
+                 isResetIssued = 1;
                  iscommandData = 1;
             }
             else if(Ql_memcmp(myAction,setHeartBeat,sizeof(myAction)) == 0){
                  int myHeartBeat = extract_int(payload, "heartBeat");
                  devConfig.heartbeatMin = myHeartBeat;
+
+                 char heartbeatMin[2] = {0};
+                 heartbeatMin[0] = devConfig.heartbeatMin >> 8;
+                 heartbeatMin[1] = devConfig.heartbeatMin & 0xff;
+                 saveBytesToFlash("heartbeatMin.txt",heartbeatMin,Ql_strlen(heartbeatMin));
+
                  Ql_memset(commandData,0,sizeof(commandData));
                  Ql_sprintf(commandData,"{action:%s,imei:%s}",setHeartBeat,devConfig.imei);
                  iscommandData = 1;
@@ -1024,6 +1078,29 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
         devConfig.ignationStatus = Ql_GPIO_GetLevel(PINNAME_GPIO_2);
         batteryLevel = get_battery_percentage(&devConfig);
         APP_DEBUG("checking pin level battery = %2f, ignationPinLevel = %d \r\n",batteryLevel,ignationPinLevel);
+
+        
+
+        if(isResetIssued == 1 && iscommandData == 0){ // once the command to reset has been sent execute reset 
+            isResetIssued = 0;
+            Ql_Reset(0);
+        }
+
+
+        if(isSleepIssued == 1 && iscommandData == 0){ // once the command to sleep has been sent execute reset 
+            isSleepIssued = 0;
+            int mode = devConfig.sleepMode;
+            if (mode == 1) {
+               // enter_low_power_mode();
+               Ql_SleepEnable();
+            } else {
+               //exit_low_power_mode();
+               Ql_SleepDisable();
+            }
+        }
+
+        
+                 
 
         if(devConfig.vehicleDisabled == 1){
             Ql_GPIO_SetLevel(PINNAME_GPIO_0, PINLEVEL_HIGH); 
@@ -1087,6 +1164,11 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
               devConfig.lastIgnationLevel = devConfig.ignationLevel;
         }
 
+        
+        if(gnssData.status != 'A'){
+            gnssData.longDirection = 'E';
+            gnssData.latDirection = 'N';
+        }
 
         Ql_memset(heartBeatData,0,sizeof(heartBeatData));
         Ql_sprintf(heartBeatData,
@@ -1124,8 +1206,48 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
                     1,   // external placeholder
                     devConfig.odometerKm
             );
-
         isHeartBeatData = 1;
+        
+        if(gnssData.status == 'A'){
+            Ql_memset(deviceData,0,sizeof(deviceData));
+            Ql_sprintf(deviceData,
+            "{"
+                "\"action\": \"positionPacket\","
+                "\"imei\": \"%s\","
+                        "\"utcTime\":%2f,"
+                        "\"longitude\":%8f,"
+                        "\"longitudeDirection\":\"%c\","
+                        "\"latitude\":%8f,"
+                        "\"latitudeDirection\":\"%c\","
+                        "\"speed\":%6f,"
+                        "\"courseOverGround\":%6f,"
+                        "\"deviceDate\":%d,"
+                        "\"magneticVariation\":%2f,"
+                        "\"battery\":%f,"
+                        "\"ignation\":%d,"
+                        "\"vehicleDisabled\":%d,"
+                        "\"external\":%d,"
+                        "\"odo\":%d"
+                    "}",
+                    devConfig.imei,
+                    gnssData.utcTime,
+                    gnssData.longitude,
+                    gnssData.longDirection,
+                    gnssData.latitude,
+                    gnssData.latDirection,
+                    gnssData.speed,
+                    gnssData.courseOverGround,
+                    gnssData.deviceDate,
+                    gnssData.magneticVariation,
+                    batteryLevel,  // battery placeholder
+                    devConfig.ignationLevel,  // ignation placeholder
+                    devConfig.vehicleDisabled, // vehicleDisabled
+                    1,   // external placeholder
+                    devConfig.odometerKm
+            );
+            isDeviceData = 1;
+        }
+        
     }
 
         
@@ -1150,6 +1272,17 @@ static void SMS_Callback_Timer(u32 timerId, void* param){
     }     
 }
 
+
+
+
+static void Connection_Timer(u32 timerId, void* param){
+    if(CONNECTION_TIMER_ID == timerId){
+        APP_DEBUG("Reconnecting device \r\n");
+        RIL_MQTT_QMTCLOSE(connect_id);
+        m_mqtt_state = STATE_NW_QUERY_STATE;
+        Ql_Reset(0);
+    }
+}
 
 static void Mqtt_Callback_Timer(u32 timerId, void* param)
 {
@@ -1219,13 +1352,6 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 else
                 {
                     //APP_DEBUG("//<Ali Platform configure failure,ret = %d\r\n",ret);
-                    configTrial = configTrial + 1;
-                    if(configTrial >= 40){
-                        m_mqtt_state = STATE_NW_QUERY_STATE;
-                        configTrial = 0;
-                        Ql_Reset(0);
-                    }
-
                     APP_DEBUG("//<Select version 3.1.1 failure,ret = %d\r\n",ret);
                 }
                 break;
@@ -1247,12 +1373,6 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 else
                 {
                     APP_DEBUG("//<Open a MQTT client failure,ret = %d-->\r\n",ret);
-                    connectionTrial = connectionTrial + 1;
-                    if(connectionTrial >= 40){
-                        m_mqtt_state = STATE_NW_QUERY_STATE;
-                        Ql_Reset(0);
-                        connectionTrial = 0;
-                    }
                     
                 }
                 break;
@@ -1274,13 +1394,6 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 else
                 {
                     APP_DEBUG("//<failed to login = %d\r\n",ret);
-                    loginTrial = loginTrial + 1;
-                    if(loginTrial >= 40){
-                        m_mqtt_state = STATE_NW_QUERY_STATE;
-                        APP_DEBUG("//<applying for connection again %d\r\n",ret);
-                        loginTrial = 0;
-                        Ql_Reset(0);
-                    }
                 }
                 break;
             }
@@ -1290,7 +1403,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
 				mqtt_topic_info_t.topic[0] = (u8*)Ql_MEM_Alloc(sizeof(u8)*256);
 				
 				Ql_memset(mqtt_topic_info_t.topic[0],0,256);
-				Ql_memcpy(mqtt_topic_info_t.topic[0],devConfig.deviceTopic,Ql_strlen(devConfig.deviceTopic));
+				Ql_memcpy(mqtt_topic_info_t.topic[0],devConfig.serverCommandTopic,Ql_strlen(devConfig.serverCommandTopic));
                 mqtt_topic_info_t.qos[0] = QOS1_AT_LEASET_ONCE;
 				sub_message_id++;  //< 1-65535.
 				
@@ -1308,11 +1421,6 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 else
                 {
                     APP_DEBUG("//<Subscribe topic failure,ret = %d\r\n",ret);
-                    subTrial = subTrial + 1;
-                    if(subTrial > 40){
-                        subTrial = 0;
-                        Ql_Reset(0);
-                    }
                 }
                 break;
             }
@@ -1321,34 +1429,52 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
 				pub_message_id++;  //< The range is 0-65535. It will be 0 only when<qos>=0.
 
                 u8 wasAnyPublish = 0; // checks if there was a publish
-                
-                if(isDeviceData == 1){
-                     APP_DEBUG(" last push time = %u \r\n");
-                     APP_DEBUG(" time set = %u \r\n",(devConfig.rptSec * 1000));
-                     if( lastLocationPush >= (devConfig.rptSec * 1000) ){
-                          ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceData),deviceData);
-                          lastLocationPush = 0;
-                          wasAnyPublish = 1;
-                     }
-                }
 
+                APP_DEBUG(" waiting to publish \r\n");
+                
+                
+
+
+                if( lastLocationPush >= (devConfig.rptSec * 1000) ){
+                    APP_DEBUG(" last push time = %u \r\n",lastLocationPush);
+                    APP_DEBUG(" time set = %u \r\n",(devConfig.rptSec * 1000));
+                    if(isDeviceData == 1){
+                        APP_DEBUG("position data to publish %s \r\n ",deviceData);
+                        lastLocationPush = 0;
+                        ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceData),deviceData);
+                        wasAnyPublish = 1;
+                        isDeviceData = 0;
+                        
+                    }
+                    else{
+                        APP_DEBUG(" no data be pushed \r\n");
+                    }
+                }
+                
+                
 
                 if(isHeartBeatData == 1){
-                     APP_DEBUG(" last push time = %u \r\n");
+                     APP_DEBUG(" last push heartbeat time = %u \r\n");
+                     APP_DEBUG("heartbeat data to publish %s \r\n ",heartBeatData);
                      ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(heartBeatData),heartBeatData);
                      isHeartBeatData = 0;
                      wasAnyPublish = 1;
                 }
 
 
+                
+
+
                 if(isDeviceAlarm == 1){
                      ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(deviceAlarm),deviceAlarm);
                      wasAnyPublish = 1;
+                     isDeviceAlarm = 0;
                 }
 
                 if(iscommandData == 1){
 				     ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(commandData),commandData);
                      wasAnyPublish = 1;
+                     iscommandData = 0;
                 }
 
                 if(wasAnyPublish == 1){
@@ -1360,7 +1486,6 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                             last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
 
                         if(isDeviceData == 1){
-                            lastLocationPush = 0;
                             isDeviceData = 0;
                         }
                         
@@ -1373,13 +1498,10 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     else
                     {
                         APP_DEBUG("//<Publish a message to MQTT server failure,ret = %d\r\n",ret);
-                        countPublishFailure = countPublishFailure + 1;
-                        if(countPublishFailure >= 30){
-                            RIL_MQTT_QMTCLOSE(connect_id);
-                            m_mqtt_state = STATE_NW_QUERY_STATE;
-                            Ql_Reset(0);
-                            countPublishFailure = 0;
-                        }
+                        isHeartBeatData = 0;
+                        isDeviceData = 0;
+                        isDeviceAlarm = 0;
+                        iscommandData = 0;
                     }
                 }
                 else{
@@ -1394,9 +1516,9 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 //<do nothing
                 APP_DEBUG("//mqtt doing nothing\r\n");
                 countMqttResponseWaitTime = countMqttResponseWaitTime + 1;
-                if(countMqttResponseWaitTime > 150){
+                if(countMqttResponseWaitTime > 100){
+                    APP_DEBUG("//reseting device\r\n");
                     countMqttResponseWaitTime = 0;
-                    m_mqtt_state = last_m_mqtt_state;
                     Ql_Reset(0);
                 }
 			    break;
@@ -2223,7 +2345,7 @@ static void Hdlr_RecvNewSMS(u32 nIndex, bool bAutoReply)
     ST_RIL_SMS_TextInfo *pTextInfo = NULL;
     ST_RIL_SMS_DeliverParam *pDeliverTextInfo = NULL;
     char aPhNum[RIL_SMS_PHONE_NUMBER_MAX_LEN] = {0,};
-    char myTextMessage[100];
+    char myTextMessage[1024];
     char aReplyCon[] = {"Module has received SMS dddd."};
     bool bResult = FALSE;
     
@@ -2744,6 +2866,17 @@ void loadConfig(){
     Ql_strncat(devConfig.deviceTopic,devConfig.imei,Ql_strlen(devConfig.imei));
     u32 lastIndex =  Ql_strlen("device/") + Ql_strlen(devConfig.imei);
     devConfig.deviceTopic[lastIndex] = '\0';
+
+
+    Ql_strncat(devConfig.loginTopic,"device/",Ql_strlen("device/login/"));
+    Ql_strncat(devConfig.loginTopic,devConfig.imei,Ql_strlen(devConfig.imei));
+    lastIndex =  Ql_strlen("device/login/") + Ql_strlen(devConfig.imei);
+    devConfig.loginTopic[lastIndex] = '\0';
+
+    Ql_strncat(devConfig.serverCommandTopic,"device/",Ql_strlen("device/command/"));
+    Ql_strncat(devConfig.serverCommandTopic,devConfig.imei,Ql_strlen(devConfig.imei));
+    lastIndex =  Ql_strlen("device/command/") + Ql_strlen(devConfig.imei);
+    devConfig.loginTopic[lastIndex] = '\0';
 
 
     char myIp[30] = {0};

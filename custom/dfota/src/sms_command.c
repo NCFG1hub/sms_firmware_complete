@@ -20,6 +20,7 @@
 char *my_strtok(char *str, const char *delim);
 void extract_key_value(const char *src, const char *key, char *dest, int size, char endDelim);
 s32 saveBytesToFlash(char* fileName,char* data,u32 length);
+void str_to_upper(char *str);
 
 char userPhone[20] = {0};
 
@@ -1035,8 +1036,8 @@ static void handle_speed_command(const char* sender, const char* body, DeviceCon
 
             g_cfg->speedLimitKph = limit;
             char mySpeedLimitKph[2] = {0};
-            mySpeedLimitKph[0] = g_cfg->speedReporting >> 0;
-            mySpeedLimitKph[1] = g_cfg->speedReporting & 0xff;
+            mySpeedLimitKph[0] = g_cfg->speedLimitKph >> 0;
+            mySpeedLimitKph[1] = g_cfg->speedLimitKph & 0xff;
             saveBytesToFlash("speedLimitKph.txt",mySpeedLimitKph,Ql_strlen(mySpeedLimitKph));
 
             char msg[64];
@@ -1534,7 +1535,7 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     /* === Check unread SMS (index 1..50 for example) === */
     APP_DEBUG("[SMS] From: %s\r\n", smsSender);
     APP_DEBUG("[SMS] Body: %s\r\n", smsContent);
-
+    str_to_upper(smsContent);
     /* ==== If Not Authorized React And Go On ==== */
     
     if (!is_authorized(smsSender, g_cfg)) {
@@ -1542,11 +1543,14 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
         //Ql_SMS_Delete(1, SMS_DEL_INDEXED_MSG, SIM0);
         return;
     }
+    
 
     /* === Convert to Uppercase For Case-Insensitive Compare === */
     char bodyUpper[1024];
     Ql_memset(bodyUpper,0,sizeof(bodyUpper));
     Ql_strncpy(bodyUpper, smsContent,Ql_strlen(smsContent));
+
+    str_to_upper(bodyUpper);
     /*for (char* p = bodyUpper; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') *p -= 32;
     }*/
@@ -1561,7 +1565,7 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     if (Ql_strcmp(commandHead, "ADD") == 0) {
         handle_add_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "ADDUSER") == 0 || Ql_strcmp(commandHead, "AU") == 0) {
+    else if (Ql_strcmp(commandHead, "ADDUSER") == 0 || Ql_strcmp(commandHead, "AU") == 0 ) {
         handle_adduser_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "NAME") == 0 || Ql_strcmp(commandHead, "N") == 0) {
@@ -1673,6 +1677,18 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     }
 }
 
+
+void str_to_upper(char *str)
+{
+    while (*str)
+    {
+        if (*str >= 'a' && *str <= 'z')
+        {
+            *str = *str - 32;   // or (*str -= ('a' - 'A'))
+        }
+        str++;
+    }
+}
 
 
 char *my_strtok(char *str, const char *delim) {

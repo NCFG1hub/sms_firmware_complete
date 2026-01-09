@@ -104,6 +104,8 @@ typedef struct {
     u8 outputControl;
     char serverIP[20];
     char deviceTopic[22];
+    char loginTopic[22];
+    char serverCommandTopic[22];
     char clientId[30];
     u8 isSimCardReaddy;
     u8 isGsmNetworkGotten;
