@@ -622,7 +622,7 @@ static void handle_upgrade_command(const char* sender, const char* body, DeviceC
      Ql_memcpy(apnCfg.apnPasswd, g_cfg->apnPass, Ql_strlen(g_cfg->apnPass));
 
      Ql_memset(userPhone,0,sizeof(userPhone));
-     Ql_strncpy(userPhone,sender,Ql_strlen(sender));
+     Ql_strncpy(userPhone,sender,sizeof(userPhone)-1);
      userPhone[Ql_strlen(sender)] = '\0';
      g_cfg->isRunUpgrade = 1;
      APP_DEBUG("upgrade started %s \r\n",userPhone);
@@ -1535,7 +1535,7 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     /* === Check unread SMS (index 1..50 for example) === */
     APP_DEBUG("[SMS] From: %s\r\n", smsSender);
     APP_DEBUG("[SMS] Body: %s\r\n", smsContent);
-    str_to_upper(smsContent);
+
     /* ==== If Not Authorized React And Go On ==== */
     
     if (!is_authorized(smsSender, g_cfg)) {
@@ -1548,9 +1548,8 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     /* === Convert to Uppercase For Case-Insensitive Compare === */
     char bodyUpper[1024];
     Ql_memset(bodyUpper,0,sizeof(bodyUpper));
-    Ql_strncpy(bodyUpper, smsContent,Ql_strlen(smsContent));
-
-    str_to_upper(bodyUpper);
+    Ql_strncpy(bodyUpper, smsContent,sizeof(bodyUpper)-1);
+    bodyUpper[sizeof(bodyUpper) - 1] = '\0';
     /*for (char* p = bodyUpper; *p; ++p) {
         if (*p >= 'a' && *p <= 'z') *p -= 32;
     }*/
@@ -1560,15 +1559,14 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     char* commandHead = my_strtok(bodyUpper,",");
 
     APP_DEBUG("seen command head %s\r\n", commandHead);
-
     /* === Check if it starts with ADD, ETC. === */
-    if (Ql_strcmp(commandHead, "ADD") == 0) {
+    if (Ql_strcmp(commandHead, "ADD") == 0 || Ql_strcmp(commandHead, "Add") == 0 || Ql_strcmp(commandHead, "add") == 0) {
         handle_add_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "ADDUSER") == 0 || Ql_strcmp(commandHead, "AU") == 0 ) {
+    else if (Ql_strcmp(commandHead, "ADDUSER") == 0 || Ql_strcmp(commandHead, "AddUser") == 0 || Ql_strcmp(commandHead, "adduser") == 0 || Ql_strcmp(commandHead, "AU") == 0 ) {
         handle_adduser_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "NAME") == 0 || Ql_strcmp(commandHead, "N") == 0) {
+    else if (Ql_strcmp(commandHead, "NAME") == 0 || Ql_strcmp(commandHead, "Name") == 0 || Ql_strcmp(commandHead, "name") == 0 || Ql_strcmp(commandHead, "N") == 0) {
         handle_name_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "SET") == 0 || Ql_strcmp(commandHead, "Set") == 0 || Ql_strcmp(commandHead, "set") == 0) {
@@ -1584,26 +1582,26 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
            handle_set_odo_command(smsSender, smsContent, g_cfg);
         } 
     } 
-    else if (Ql_strcmp(commandHead, "PASSWORD") == 0) {
+    else if (Ql_strcmp(commandHead, "PASSWORD") == 0 || Ql_strcmp(commandHead, "Password") == 0 || Ql_strcmp(commandHead, "password") == 0) {
         handle_password_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "GETREPORT") == 0 || Ql_strcmp(commandHead, "GR") == 0) {
+    else if (Ql_strcmp(commandHead, "GETREPORT") == 0 || Ql_strcmp(commandHead, "GetReport") == 0 || Ql_strcmp(commandHead, "getreport") == 0 || Ql_strcmp(commandHead, "GR") == 0) {
         handle_getreport_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "LISTUSER") == 0 || Ql_strcmp(commandHead, "LU") == 0 || Ql_strcmp(commandHead, "ListUser") == 0 ) {
+    else if (Ql_strcmp(commandHead, "LISTUSER") == 0 || Ql_strcmp(commandHead, "LU") == 0 || Ql_strcmp(commandHead, "ListUser") == 0 || Ql_strcmp(commandHead, "listuser") == 0) {
         handle_listuser_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "DELETEUSER") == 0 || Ql_strcmp(commandHead, "DU") == 0 || Ql_strcmp(commandHead, "DeleteUser") == 0) {
+    else if (Ql_strcmp(commandHead, "DELETEUSER") == 0 || Ql_strcmp(commandHead, "DU") == 0 || Ql_strcmp(commandHead, "DeleteUser") == 0  || Ql_strcmp(commandHead, "deleteuser") == 0) {
         handle_deluser_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "TIME") == 0) {
+    else if (Ql_strcmp(commandHead, "TIME") == 0 || Ql_strcmp(commandHead, "Time") == 0 || Ql_strcmp(commandHead, "time") == 0) {
         handle_time_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "UPGRADE") == 0 || Ql_strcmp(commandHead, "upgrade") == 0 || Ql_strcmp(commandHead, "Upgrade") == 0) {
         handle_upgrade_command(smsSender, smsContent, g_cfg);
         return;
     } 
-    else if (Ql_strcmp(commandHead, "SMS") == 0) {
+    else if (Ql_strcmp(commandHead, "SMS") == 0 || Ql_strcmp(commandHead, "Sms") == 0 || Ql_strcmp(commandHead, "sms") == 0)  {
         handle_sms_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "SETTINGS") == 0 || Ql_strcmp(commandHead, "Settings") == 0 || Ql_strcmp(commandHead, "settings") == 0) {
@@ -1618,52 +1616,52 @@ void sms_pump(char* smsSender, char* smsContent, DeviceConfig *g_cfg) {
     else if (Ql_strcmp(commandHead, "REBOOT") == 0 || Ql_strcmp(commandHead, "RB") == 0 || Ql_strcmp(commandHead, "Reboot") == 0 || Ql_strcmp(commandHead, "reboot") == 0|| Ql_strcmp(commandHead, "rb") == 0) {
         handle_reboot_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "HELP") == 0 || Ql_strcmp(commandHead, "?") == 0) {
+    else if (Ql_strcmp(commandHead, "HELP") == 0 || Ql_strcmp(commandHead, "?") == 0 || Ql_strcmp(commandHead, "help") == 0 || Ql_strcmp(commandHead, "Help") == 0) {
         handle_help_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "FIND") == 0) {
+    else if (Ql_strcmp(commandHead, "FIND") == 0 || Ql_strcmp(commandHead, "Find") == 0 || Ql_strcmp(commandHead, "find") == 0) {
         handle_find_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "TRIP") == 0) {
+    else if (Ql_strcmp(commandHead, "TRIP") == 0 || Ql_strcmp(commandHead, "Trip") == 0 || Ql_strcmp(commandHead, "trip") == 0) {
         handle_trip_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "ALARM") == 0) {
+    else if (Ql_strcmp(commandHead, "ALARM") == 0 || Ql_strcmp(commandHead, "Alarm") == 0 || Ql_strcmp(commandHead, "alarm") == 0) {
         handle_alarm_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "LISTEN") == 0) {
+    else if (Ql_strcmp(commandHead, "LISTEN") == 0 || Ql_strcmp(commandHead, "listen") == 0 || Ql_strcmp(commandHead, "Listen") == 0) {
         handle_listen_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "SPEED") == 0) {
+    else if (Ql_strcmp(commandHead, "SPEED") == 0 || Ql_strcmp(commandHead, "Speed") == 0 || Ql_strcmp(commandHead, "speed") == 0) {
         handle_speed_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "MAINPOWER") == 0 || Ql_strcmp(commandHead, "MP") == 0) {
+    else if (Ql_strcmp(commandHead, "MAINPOWER") == 0 || Ql_strcmp(commandHead, "MP") == 0 || Ql_strcmp(commandHead, "MainPower") == 0 || Ql_strcmp(commandHead, "mainpower") == 0) {
         handle_mainpower_command(smsSender, smsContent, g_cfg);
     } 
     else if (Ql_strcmp(commandHead, "DISABLE") == 0 || Ql_strcmp(commandHead, "Disable") == 0 || Ql_strcmp(commandHead, "disable") == 0) {
         handle_disable_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "IGNITION") == 0 || Ql_strcmp(commandHead, "I") == 0) {
+    else if (Ql_strcmp(commandHead, "IGNITION") == 0 || Ql_strcmp(commandHead, "I") == 0 || Ql_strcmp(commandHead, "Ignition") == 0 || Ql_strcmp(commandHead, "ignition") == 0)  {
         handle_ignition_command(smsSender, smsContent,g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "SHOCK") == 0) {
+    else if (Ql_strcmp(commandHead, "SHOCK") == 0 || Ql_strcmp(commandHead, "Shock") == 0 || Ql_strcmp(commandHead, "shock") == 0) {
         handle_shock_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "LOGGER") == 0) {
+    else if (Ql_strcmp(commandHead, "LOGGER") == 0 || Ql_strcmp(commandHead, "Logger") == 0 || Ql_strcmp(commandHead, "logger") == 0) {
         handle_logger_command(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "HEARTBEAT") == 0) {
+    else if (Ql_strcmp(commandHead, "HEARTBEAT") == 0 || Ql_strcmp(commandHead, "HeartBeat") == 0 || Ql_strcmp(commandHead, "heartbeat") == 0) {
         handle_heartbeat_command(smsSender, smsContent, g_cfg);
     }  
-    else if (Ql_strcmp(commandHead, "IMEI") == 0) {
+    else if (Ql_strcmp(commandHead, "IMEI") == 0 || Ql_strcmp(commandHead, "Imei") == 0 || Ql_strcmp(commandHead, "imei") == 0) {
         handle_setImei(smsSender, smsContent, g_cfg);
     } 
-    else if (Ql_strcmp(commandHead, "IP") == 0) {
+    else if (Ql_strcmp(commandHead, "IP") == 0 || Ql_strcmp(commandHead, "Ip") == 0 || Ql_strcmp(commandHead, "ip") == 0) {
         handle_setIp(smsSender, smsContent, g_cfg);
     } 
     else {
         char bodyUpper2[1024];
-        Ql_strncpy(bodyUpper2, smsContent,Ql_strlen(smsContent));
-        
+        Ql_strncpy(bodyUpper2, smsContent,sizeof(bodyUpper2)-1);
+        bodyUpper2[sizeof(bodyUpper2) - 1] = '\0';
         char* commandHead2 =  my_strtok(bodyUpper2,":");
         APP_DEBUG("command %s\r\n", commandHead2);
 

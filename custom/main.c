@@ -33,7 +33,6 @@
 #include "ql_gprs.h"
 
 
-
 #define DEBUG_ENABLE 1
 #if DEBUG_ENABLE > 0
 #define DEBUG_PORT  UART_PORT1
@@ -118,7 +117,11 @@ static void http_downfile_timer(u32 timerId, void* param);
 
 static s32 CUSTOM_AT_RESPONSE_HANDLER(char* line, u32 len, void* userData);
 
+static s32 QENG_Rsp_Handler(char *line, u32 len, void *userData);
+void Get_Cell_info(void);
+static s32 QENG_Cell_Rsp_Handler(char *line, u32 len, void *userData);
 
+static int hex_to_int(const char* hex);
 /*****************************************************************
 * MQTT  timer param
 ******************************************************************/
@@ -215,6 +218,7 @@ static void decode_gps_data(char* gpsData,GPS_LOCATION_T* decodedGps);
 
 static s32 AT_CELL_LOCATION_HANDLER(char* line, u32 len, void* userData);
 static s32 AT_CELL_INFO_HANDLER(char* line, u32 len, void* userdata);
+void Stop_Cell_Info(void);
 
 
 
@@ -243,7 +247,8 @@ typedef struct {
 #define MAX_NEIGH 16
 NeighborCell neighbors[MAX_NEIGH];
 int neighCount = 0;
- 
+
+int countSubscribeFailure = 0;
 
 
 /*****************************************************************
@@ -304,15 +309,19 @@ static u8 last_m_mqtt_state = STATE_NW_QUERY_STATE;
 
 char heartBeatData[1024];
 char deviceData[1024];
+char cellInfoData[2000];
 char commandData[1024];
 char deviceAlarm[1024];
 char receivedSms[1024];
 char senderPhone[30];
 u16 isDeviceData = 0;
+u16 isCellData = 0;
 u16 isHeartBeatData = 0;
 u16 isDeviceAlarm = 0;
 u16 iscommandData = 0;
 u16 isNewSmsReceived = 0;
+
+
 
 
 u32 heartBeatPushFailureCount = 0;
@@ -367,6 +376,11 @@ GPS_LOCATION_T prevGnssData;
 
 s32 ignationPinLevel;
 float batteryLevel;
+
+char receivedCellInfo[3000];
+int dataIndex;
+
+int mcc,mnc,lac,cellId; //serving cell parameters 
 
 /* mqttp topics */
 
@@ -1118,7 +1132,8 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
             //http_downfile_timer(FotaUpdate_Start_TmrId, NULL);
         }
 
-
+        APP_DEBUG("----------------------------------------------reading cell info----------------------------------------");
+        
 
         if(devConfig.ignitionReporting == 1){
               if(devConfig.ignationLevel != devConfig.lastIgnationLevel){
@@ -1210,9 +1225,12 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
         
         if(gnssData.status == 'A'){
             Ql_memset(deviceData,0,sizeof(deviceData));
+            Get_Cell_info();
             Ql_sprintf(deviceData,
             "{"
                 "\"action\": \"positionPacket\","
+                "\"source\": \"GPS\","
+                "\"accuracy\":50,"
                 "\"imei\": \"%s\","
                         "\"utcTime\":%2f,"
                         "\"longitude\":%8f,"
@@ -1227,7 +1245,11 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
                         "\"ignation\":%d,"
                         "\"vehicleDisabled\":%d,"
                         "\"external\":%d,"
-                        "\"odo\":%d"
+                        "\"odo\":%d,"
+                        "\"mcc\":%d,"
+                        "\"mnc\":%d,"
+                        "\"lac\":%d,"
+                        "\"cellId\":%d"
                     "}",
                     devConfig.imei,
                     gnssData.utcTime,
@@ -1243,7 +1265,11 @@ static void Pin_Check_Callback_Timer(u32 timerId, void* param){
                     devConfig.ignationLevel,  // ignation placeholder
                     devConfig.vehicleDisabled, // vehicleDisabled
                     1,   // external placeholder
-                    devConfig.odometerKm
+                    devConfig.odometerKm,
+                    mcc,
+                    mnc,
+                    lac,
+                    cellId
             );
             isDeviceData = 1;
         }
@@ -1295,6 +1321,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
             m_mqtt_state = STATE_NW_QUERY_STATE;
             devConfig.mqtt_state = STATE_MQTT_CFG;
         }
+
+        
         switch(m_mqtt_state)
         {        
             case STATE_NW_QUERY_STATE:
@@ -1379,7 +1407,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
             }
             case STATE_MQTT_CONN:
             {
-			    APP_DEBUG("imei = %s, username = %s\r\n",devConfig.imei,username);
+			    APP_DEBUG("imei = %s, username = %s, client = %s\r\n",devConfig.imei,username,devConfig.clientId);
                 ret = RIL_MQTT_QMTCONN(connect_id,devConfig.clientId,username,devConfig.imei);
 	            if(RIL_AT_SUCCESS == ret)
                 {
@@ -1399,6 +1427,8 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
             }
 			case STATE_MQTT_SUB:
             {				
+
+                APP_DEBUG("//<subscribing %s \r\n",devConfig.serverCommandTopic);
                 mqtt_topic_info_t.count = 1;
 				mqtt_topic_info_t.topic[0] = (u8*)Ql_MEM_Alloc(sizeof(u8)*256);
 				
@@ -1417,10 +1447,17 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                     if(m_mqtt_state != STATE_MQTT_TOTAL_NUM)
                         last_m_mqtt_state = m_mqtt_state; // save last mqtt state;
                     m_mqtt_state = STATE_MQTT_TOTAL_NUM;
+                    countSubscribeFailure = 0;
                 }
                 else
                 {
                     APP_DEBUG("//<Subscribe topic failure,ret = %d\r\n",ret);
+                    countSubscribeFailure = countSubscribeFailure + 1;
+                    if(countSubscribeFailure >= 5){
+                        m_mqtt_state = STATE_MQTT_CFG;
+                        countSubscribeFailure = 0;
+                    }
+                    
                 }
                 break;
             }
@@ -1447,6 +1484,27 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                         
                     }
                     else{
+                        if(isCellData == 1){
+                            APP_DEBUG("position data to publish %s \r\n ",deviceData);
+                            APP_DEBUG(" >>>>>>>>>>>>>>publishing cell tower with topic %s \r\n",devConfig.deviceTopic);
+                            APP_DEBUG(" >>>>>>>>>>>>>>publishing data published %s \r\n",cellInfoData);
+                            lastLocationPush = 0;
+                            ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(cellInfoData),cellInfoData);
+                            wasAnyPublish = 1;
+                            isCellData = 0;
+                            
+                        }
+                        else{
+                            if(Ql_strlen(cellInfoData) > 10){
+                               APP_DEBUG("position data to publish %s \r\n ",deviceData);
+                                APP_DEBUG(" >>>>>>>>>>>>>>publishing cell tower with topic %s \r\n",devConfig.deviceTopic);
+                                APP_DEBUG(" >>>>>>>>>>>>>>publishing data published %s \r\n",cellInfoData);
+                                lastLocationPush = 0;
+                                ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(cellInfoData),cellInfoData);
+                                wasAnyPublish = 1;
+                                isCellData = 0; 
+                            }
+                        }
                         APP_DEBUG(" no data be pushed \r\n");
                     }
                 }
@@ -1456,6 +1514,7 @@ static void Mqtt_Callback_Timer(u32 timerId, void* param)
                 if(isHeartBeatData == 1){
                      APP_DEBUG(" last push heartbeat time = %u \r\n");
                      APP_DEBUG("heartbeat data to publish %s \r\n ",heartBeatData);
+                     APP_DEBUG("heartbeat TOPIC IS %s \r\n ",devConfig.deviceTopic);
                      ret = RIL_MQTT_QMTPUB(connect_id,pub_message_id,QOS1_AT_LEASET_ONCE,0,devConfig.deviceTopic,Ql_strlen(heartBeatData),heartBeatData);
                      isHeartBeatData = 0;
                      wasAnyPublish = 1;
@@ -1724,51 +1783,13 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                         saveBytesToFlash("odometerKm.txt",ordoMeterArr,sizeof(ordoMeterArr)); 
 
                         Ql_memset(deviceData,0,sizeof(deviceData));
+                        Get_Cell_info();
                         Ql_sprintf(deviceData,
-                            "{"
-                                "\"action\": \"positionPacket\","
-                                "\"imei\": \"%s\","
-                                "\"utcTime\":%2f,"
-                                "\"longitude\":%8f,"
-                                "\"longitudeDirection\":\"%c\","
-                                "\"latitude\":%8f,"
-                                "\"latitudeDirection\":\"%c\","
-                                "\"speed\":%6f,"
-                                "\"courseOverGround\":%6f,"
-                                "\"deviceDate\":%d,"
-                                "\"magneticVariation\":%2f,"
-                                "\"battery\":%f,"
-                                "\"trip\":%d,"
-                                "\"external\":%d,"
-                                "\"odo\":%d"
-                            "}",
-                            devConfig.imei,
-                            gnssData.utcTime,
-                            gnssData.longitude,
-                            gnssData.longDirection,
-                            gnssData.latitude,
-                            gnssData.latDirection,
-                            gnssData.speed,
-                            gnssData.courseOverGround,
-                            gnssData.deviceDate,
-                            gnssData.magneticVariation,
-                            batteryLevel,  // battery placeholder
-                            devConfig.trip,  // trip placeholder
-                            1,   // external placeholder
-                            devConfig.odometerKm
-                        );
-                        isDeviceData = 1; // set mqtt to publish when gps is set
-						m_gnss_state = STATE_GNSS_CHECK_FIX;
-					}
-					else
-					{
-						APP_DEBUG("<--GPS not fixed.-->\r\n");
-                        if(gnssData.status == 'A'){
-                            Ql_memset(deviceData,0,sizeof(deviceData));
-                            Ql_sprintf(deviceData,
-                                "{"
-                                    "\"action\": \"positionPacket\","
-                                    "\"imei\": \"%s\","
+                        "{"
+                            "\"action\": \"positionPacket\","
+                            "\"source\": \"GPS\","
+                            "\"accuracy\":50,"
+                            "\"imei\": \"%s\","
                                     "\"utcTime\":%2f,"
                                     "\"longitude\":%8f,"
                                     "\"longitudeDirection\":\"%c\","
@@ -1779,9 +1800,14 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                     "\"deviceDate\":%d,"
                                     "\"magneticVariation\":%2f,"
                                     "\"battery\":%f,"
-                                    "\"trip\":%d,"
+                                    "\"ignation\":%d,"
+                                    "\"vehicleDisabled\":%d,"
                                     "\"external\":%d,"
-                                    "\"odo\":%d"
+                                    "\"odo\":%d,"
+                                    "\"mcc\":%d,"
+                                    "\"mnc\":%d,"
+                                    "\"lac\":%d,"
+                                    "\"cellId\":%d"
                                 "}",
                                 devConfig.imei,
                                 gnssData.utcTime,
@@ -1794,54 +1820,74 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                                 gnssData.deviceDate,
                                 gnssData.magneticVariation,
                                 batteryLevel,  // battery placeholder
-                                devConfig.trip,  // trip placeholder
+                                devConfig.ignationLevel,  // ignation placeholder
+                                devConfig.vehicleDisabled, // vehicleDisabled
                                 1,   // external placeholder
-                                devConfig.odometerKm
-                            );
-                            isDeviceData = 1; // set mqtt to publish when gps is set
-                        }
-
-					}
-				}
-                else
-                {
-					APP_DEBUG("<--Read RMC fail.-->\r\n");
-                    if(gnssData.status == 'A'){
-                        Ql_memset(deviceData,0,sizeof(deviceData));
-                        Ql_sprintf(deviceData,
-                            "{"
-                                "\"action\": \"positionPacket\","
-                                "\"imei\": \"%s\","
-                                "\"utcTime\":%2f,"
-                                "\"longitude\":%8f,"
-                                "\"longitudeDirection\":\"%c\","
-                                "\"latitude\":%8f,"
-                                "\"latitudeDirection\":\"%c\","
-                                "\"speed\":%6f,"
-                                "\"courseOverGround\":%6f,"
-                                "\"deviceDate\":%d,"
-                                "\"magneticVariation\":%2f,"
-                                "\"battery\":%f,"
-                                "\"trip\":%d,"
-                                "\"external\":%d,"
-                                "\"odo\":%d"
-                            "}",
-                            devConfig.imei,
-                            gnssData.utcTime,
-                            gnssData.longitude,
-                            gnssData.longDirection,
-                            gnssData.latitude,
-                            gnssData.latDirection,
-                            gnssData.speed,
-                            gnssData.courseOverGround,
-                            gnssData.deviceDate,
-                            gnssData.magneticVariation,
-                            batteryLevel,  // battery placeholder
-                            devConfig.trip,  // trip placeholder
-                            1,   // external placeholder
-                            devConfig.odometerKm
+                                devConfig.odometerKm,
+                                mcc,
+                                mnc,
+                                lac,
+                                cellId
                         );
                         isDeviceData = 1; // set mqtt to publish when gps is set
+						m_gnss_state = STATE_GNSS_CHECK_FIX;
+					}
+					else
+					{
+						APP_DEBUG("<--GPS not fixed.-->\r\n");
+                        Get_Cell_info();
+                        if(gnssData.status == 'A'){
+                            Ql_memset(deviceData,0,sizeof(deviceData));
+                            Get_Cell_info();
+                            Ql_sprintf(deviceData,
+                            "{"
+                                "\"action\": \"positionPacket\","
+                                "\"source\": \"GPS\","
+                                "\"accuracy\":50,"
+                                "\"imei\": \"%s\","
+                                        "\"utcTime\":%2f,"
+                                        "\"longitude\":%8f,"
+                                        "\"longitudeDirection\":\"%c\","
+                                        "\"latitude\":%8f,"
+                                        "\"latitudeDirection\":\"%c\","
+                                        "\"speed\":%6f,"
+                                        "\"courseOverGround\":%6f,"
+                                        "\"deviceDate\":%d,"
+                                        "\"magneticVariation\":%2f,"
+                                        "\"battery\":%f,"
+                                        "\"ignation\":%d,"
+                                        "\"vehicleDisabled\":%d,"
+                                        "\"external\":%d,"
+                                        "\"odo\":%d,"
+                                        "\"mcc\":%d,"
+                                        "\"mnc\":%d,"
+                                        "\"lac\":%d,"
+                                        "\"cellId\":%d"
+                                    "}",
+                                    devConfig.imei,
+                                    gnssData.utcTime,
+                                    gnssData.longitude,
+                                    gnssData.longDirection,
+                                    gnssData.latitude,
+                                    gnssData.latDirection,
+                                    gnssData.speed,
+                                    gnssData.courseOverGround,
+                                    gnssData.deviceDate,
+                                    gnssData.magneticVariation,
+                                    batteryLevel,  // battery placeholder
+                                    devConfig.ignationLevel,  // ignation placeholder
+                                    devConfig.vehicleDisabled, // vehicleDisabled
+                                    1,   // external placeholder
+                                    devConfig.odometerKm,
+                                    mcc,
+                                    mnc,
+                                    lac,
+                                    cellId
+                            );
+                        isDeviceData = 1; // set mqtt to publish when gps is set
+                    }
+                    else{
+                        Get_Cell_info();
                     }
                 }
                 break;
@@ -1850,6 +1896,7 @@ static void Gnss_Callback_Timer(u32 timerId, void* param)
                 break;
         }    
     }
+ }
 }
 
 
@@ -2503,9 +2550,14 @@ static void Hdlr_RecvNewSMS(u32 nIndex, bool bAutoReply)
     
    // APP_DEBUG("data = %s\r\n",(pDeliverTextInfo->data));
     
-    Ql_memset(myTextMessage,'0',sizeof(myTextMessage));
-    Ql_strcpy(aPhNum, pDeliverTextInfo->oa);
-    Ql_strncpy(myTextMessage,pDeliverTextInfo->data,sizeof(myTextMessage));
+
+    Ql_memset(myTextMessage, 0, sizeof(myTextMessage));
+    Ql_memset(aPhNum, 0, sizeof(aPhNum));
+
+    Ql_strncpy(myTextMessage,pDeliverTextInfo->data,sizeof(myTextMessage) - 1);
+    myTextMessage[sizeof(myTextMessage) - 1] = '\0';
+    Ql_strncpy(aPhNum,pDeliverTextInfo->oa,sizeof(aPhNum) - 1);
+    aPhNum[sizeof(aPhNum) - 1] = '\0';
 
 
     APP_DEBUG("new text message :%s -->\r\n",myTextMessage);
@@ -2514,9 +2566,14 @@ static void Hdlr_RecvNewSMS(u32 nIndex, bool bAutoReply)
     isNewSmsReceived = 1;
     Ql_memset(receivedSms,0,sizeof(receivedSms));
     Ql_memset(senderPhone,0,sizeof(senderPhone));
-    Ql_strncpy(receivedSms,myTextMessage,Ql_strlen(myTextMessage));
-    Ql_strncpy(senderPhone,aPhNum,Ql_strlen(aPhNum));
 
+    Ql_strncpy(receivedSms, myTextMessage, sizeof(receivedSms) - 1);
+    receivedSms[sizeof(receivedSms) - 1] = '\0';
+    Ql_strncpy(senderPhone, aPhNum, sizeof(senderPhone) - 1);
+    senderPhone[sizeof(senderPhone) - 1] = '\0';
+    
+    APP_DEBUG("new message copied :%s -->\r\n",receivedSms);
+    APP_DEBUG("new copied phone number :%s -->\r\n",senderPhone);
     
     Ql_MEM_Free(pTextInfo);
 
@@ -2833,13 +2890,15 @@ void loadConfig(){
 
 
 
-    Ql_strcpy(devConfig.imei,devConfig.imei);
     APP_DEBUG("this is the imei %s\r\n",devConfig.imei);
-    
     Ql_memset(devConfig.clientId,0,sizeof(devConfig.clientId));
-    Ql_strcpy(devConfig.clientId,"device_/");
-    Ql_strcat(devConfig.clientId,devConfig.imei);
-    APP_DEBUG("Client id %s\r\n",devConfig.clientId);
+    Ql_strncat(devConfig.clientId,"device_/",Ql_strlen("device_/"));
+    Ql_strncat(devConfig.clientId,devConfig.imei,Ql_strlen(devConfig.imei));
+    int clientLastIndex =  Ql_strlen(devConfig.clientId);
+    devConfig.clientId[clientLastIndex] = '\0';
+
+    
+
 
     
     
@@ -2862,10 +2921,19 @@ void loadConfig(){
     devConfig.isFixedGnssPosition = 0;
     devConfig.isGnssRead = 0;
     
+
+
+    
+    Ql_memset(devConfig.deviceTopic,0,sizeof(devConfig.deviceTopic));
     Ql_strncat(devConfig.deviceTopic,"device/",Ql_strlen("device/"));
     Ql_strncat(devConfig.deviceTopic,devConfig.imei,Ql_strlen(devConfig.imei));
-    u32 lastIndex =  Ql_strlen("device/") + Ql_strlen(devConfig.imei);
+    Ql_strncat(devConfig.deviceTopic,"/responses\0",Ql_strlen("/responses"));
+    u32 lastIndex =  Ql_strlen(devConfig.deviceTopic);
     devConfig.deviceTopic[lastIndex] = '\0';
+
+
+
+    
 
 
     Ql_strncat(devConfig.loginTopic,"device/",Ql_strlen("device/"));
@@ -2876,9 +2944,11 @@ void loadConfig(){
 
     Ql_strncat(devConfig.serverCommandTopic,"device/",Ql_strlen("device/"));
     Ql_strncat(devConfig.serverCommandTopic,devConfig.imei,Ql_strlen(devConfig.imei));
-    Ql_strncat(devConfig.serverCommandTopic,"/responses\0",Ql_strlen("/responses"));
+    Ql_strncat(devConfig.serverCommandTopic,"/commands\0",Ql_strlen("/commands"));
     lastIndex =  Ql_strlen(devConfig.serverCommandTopic);
     devConfig.serverCommandTopic[lastIndex] = '\0';
+
+    
 
 
 
@@ -3229,6 +3299,576 @@ static bool ftp_Upgrade_States(Upgrade_State state, s32 fileDLPercent)
             break;
     }
     return TRUE;
+}
+
+
+static s32 QENG_Rsp_Handler(char *line, u32 len, void *userData)
+{
+    
+
+    APP_DEBUG("ENGINEERING MODE STOPPED =%s\r\n", line);
+
+    char* head = Ql_RIL_FindString(line, len, "+QENG ERROR:");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>  <LF>ERROR<LF>
+    if(head){  
+        return  RIL_ATRSP_FAILED;
+    }
+
+
+    head = Ql_RIL_FindString(line, len, "ERROR");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>  <LF>ERROR<LF>
+    if(head){  
+    return  RIL_ATRSP_FAILED;
+    }
+
+    head = Ql_RIL_FindString(line, len, "OK");// find <CR><LF>ERROR<CR><LF>, <CR>ERROR<CR>  <LF>ERROR<LF>
+    if(head){  
+       APP_DEBUG("QENG => %s", line);
+       return  RIL_ATRSP_SUCCESS;
+    }
+
+    return RIL_ATRSP_CONTINUE;    
+}
+
+
+
+
+
+static s32 QENG_Cell_Rsp_Handler(char *line, u32 len, void *userData)
+{
+    
+    if (!line || !len)
+        return RIL_ATRSP_CONTINUE;
+
+    APP_DEBUG(">> QENG DATA received all => %s", line);
+
+     // Cast userData to char*
+    char *buffer = (char *)userData;
+
+    // Append or store the received line
+    // Make sure we don't overflow buffer
+    
+
+    if (Ql_RIL_FindString(line, len, "ERROR"))
+        return RIL_ATRSP_FAILED;
+
+    if (Ql_RIL_FindString(line, len, "+QENG: 0,")) {
+        APP_DEBUG("Serving cell line received");
+        APP_DEBUG(" >>QENG DATA => %s", line);
+
+        Ql_strncat(buffer, line, 3000 - Ql_strlen(buffer) - 1);
+        Ql_strncat(buffer, ";", 1);  // optional: separate lines
+        // parse serving cell here
+        return RIL_ATRSP_CONTINUE;
+    }
+
+    if (Ql_RIL_FindString(line, len, "+QENG: 1,")) {
+        APP_DEBUG("Neighbor cell line received");
+        APP_DEBUG("QENG DATA => %s", line);
+        Ql_strncat(buffer, line, 3000 - Ql_strlen(buffer) - 1);
+        Ql_strncat(buffer, "\0", 1);  // optional: separate lines
+        // parse serving cell here
+        // parse neighbors here
+        return RIL_ATRSP_CONTINUE;
+    }
+
+    if (Ql_RIL_FindString(line, len, "OK")) {
+        APP_DEBUG(">> QENG DATA => %s", line);
+        APP_DEBUG("QENG DONE");
+        return RIL_ATRSP_SUCCESS;
+    }
+
+    return RIL_ATRSP_CONTINUE;
+}
+
+
+
+void Get_Cell_info(void)
+{
+    dataIndex = 0;
+    Ql_memset(receivedCellInfo,0,3000);
+    Ql_RIL_SendATCmd(
+        "AT+QENG=1\r\n",
+        strlen("AT+QENG=1\r\n"),
+        QENG_Cell_Rsp_Handler,
+        receivedCellInfo,
+        5000
+    );
+
+
+    Ql_RIL_SendATCmd(
+        "AT+QENG=2,3\r\n",
+        strlen("AT+QENG=2,3\r\n"),
+        NULL,
+        NULL,
+        5000
+    );
+
+    APP_DEBUG(" >>>>>>>>>>>>>>TOTAL CELL DATA RECEIVED => %s", receivedCellInfo);
+    if(Ql_strlen(receivedCellInfo) > 0){
+         
+         int mcc0,mcc1,mcc2,mcc3,mcc4,mcc5,mcc6;
+         int mnc0,mnc1,mnc2,mnc3,mnc4,mnc5,mnc6;
+         int lac0,lac1,lac2,lac3,lac4,lac5,lac6;
+         int cell_id0,cell_id1,cell_id2,cell_id3,cell_id4,cell_id5,cell_id6;
+         int arfcn0,arfcn1,arfcn2,arfcn3,arfcn4,arfcn5,arfcn6;
+         int bsic0,bsic1,bsic2,bsic3,bsic4,bsic5,bsic6;
+         int rxlev0,rxlev1,rxlev2,rxlev3,rxlev4,rxlev5,rxlev6;
+         int ta0,ta1,ta2,ta3,ta4,ta5,ta6;
+
+         char *token = my_strtok(receivedCellInfo,":");
+         token = token + Ql_strlen(token) + 3;
+         token = my_strtok(token,",");
+         mcc0 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc0 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         lac0 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id0 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         arfcn0 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         bsic0 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev0 = Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         ta0 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+         
+         token = token + Ql_strlen(token) + 1;
+
+         // PICKING NEIGHBOR CELLS
+         token = my_strtok(token,";");
+         token = token + Ql_strlen(token) + 14;
+
+         APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED NEIGHBOR DATA => %s", token);
+
+         token = my_strtok(token,",");
+         arfcn1 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev1 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc1 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc1 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac1 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id1 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+        token = token + Ql_strlen(token) + 3; // extract second one
+        APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED SECOND NEIGHBOR DATA => %s", token);
+
+
+         token = my_strtok(token,",");
+         arfcn2 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev2 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc2 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc2 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac2 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id2 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+
+
+
+        token = token + Ql_strlen(token) + 3; // extract second one
+        APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED THIRD NEIGHBOR DATA => %s", token);
+
+
+         token = my_strtok(token,",");
+         arfcn3 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev3 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc3 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc3 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac3 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id3 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+
+
+
+        token = token + Ql_strlen(token) + 3; // extract second one
+        APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED 4TH NEIGHBOR DATA => %s", token);
+
+
+         token = my_strtok(token,",");
+         arfcn4 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev4 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc4 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc4 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac4 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id4 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+
+
+        token = token + Ql_strlen(token) + 3; // extract second one
+        APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED FIFTH NEIGHBOR DATA => %s", token);
+
+
+         token = my_strtok(token,",");
+         arfcn5 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev5 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc5 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc5 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);;
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac5 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id5 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+
+        token = token + Ql_strlen(token) + 3; // extract second one
+        APP_DEBUG(" >>>>>>>>>>>>>>RECEIVED SIXTH NEIGHBOR DATA => %s", token);
+
+
+        token = my_strtok(token,",");
+        arfcn6 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         rxlev6 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1; // skip c1
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip c2
+         token = my_strtok(token,",");
+
+         token = token + Ql_strlen(token) + 1; // skip gprs
+         token = my_strtok(token,",");
+
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mcc6 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         mnc6 = (!token || token[0] == 'x') ? 0 :  Ql_atoi(token);
+
+
+         token = token + Ql_strlen(token) + 1;  // 
+         token = my_strtok(token,",");
+         lac6 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+         token = token + Ql_strlen(token) + 1;
+         token = my_strtok(token,",");
+         cell_id6 = (!token || token[0] == 'x') ? 0 :  hex_to_int(token);
+
+        
+         if(mcc0 != 0){
+
+             Ql_snprintf(
+                cellInfoData,
+                2000,
+                "{"
+                "\"source\": \"LBS\","
+                "\"action\":\"cellPacket\","
+                "\"imei\":\"%s\","
+                "\"mcc\":%d,"
+                "\"mnc\":%d,"
+                "\"lac\":%d,"
+                "\"cellId\":%d,"
+                "\"arfcn\":%d,"
+                "\"bsic\":%d,"
+                "\"rxlev\":%d,"
+                "\"timeAd\":%d,"                
+                "\"mcc1\":%d,"
+                "\"mnc1\":%d,"
+                "\"lac1\":%d,"
+                "\"cellId1\":%d,"
+                "\"arfcn1\":%d,"
+                "\"bsic1\":%d,"
+                "\"rxlev1\":%d,"
+                "\"timeAd1\":%d,"
+                "\"mcc2\":%d,"
+                "\"mnc2\":%d,"
+                "\"lac2\":%d,"
+                "\"cellId2\":%d,"
+                "\"arfcn2\":%d,"
+                "\"bsic2\":%d,"
+                "\"rxlev2\":%d,"
+                "\"timeAd2\":%d,"
+                "\"mcc3\":%d,"
+                "\"mnc3\":%d,"
+                "\"lac3\":%d,"
+                "\"cellId3\":%d,"
+                "\"arfcn3\":%d,"
+                "\"bsic3\":%d,"
+                "\"rxlev3\":%d,"
+                "\"timeAd3\":%d,"
+                "\"mcc4\":%d,"
+                "\"mnc4\":%d,"
+                "\"lac4\":%d,"
+                "\"cellId4\":%d,"
+                "\"arfcn4\":%d,"
+                "\"bsic4\":%d,"
+                "\"rxlev4\":%d,"
+                "\"timeAd4\":%d,"
+                "\"mcc5\":%d,"
+                "\"mnc5\":%d,"
+                "\"lac5\":%d,"
+                "\"cellId5\":%d,"
+                "\"arfcn5\":%d,"
+                "\"bsic5\":%d,"
+                "\"rxlev5\":%d,"
+                "\"timeAd5\":%d,"
+                "\"mcc6\":%d,"
+                "\"mnc6\":%d,"
+                "\"lac6\":%d,"
+                "\"cellId6\":%d,"
+                "\"arfcn6\":%d,"
+                "\"bsic6\":%d,"
+                "\"rxlev6\":%d,"
+                "\"timeAd6\":%d"
+                "}",
+                devConfig.imei,
+                mcc0,
+                mnc0,
+                lac0,
+                cell_id0,
+                arfcn0,
+                bsic0,
+                rxlev0,
+                ta0,
+                mcc1,
+                mnc1,
+                lac1,
+                cell_id1,
+                arfcn1,
+                bsic1,
+                rxlev1,
+                ta1,
+                mcc2,
+                mnc2,
+                lac2,
+                cell_id2,
+                arfcn2,
+                bsic2,
+                rxlev2,
+                ta2,
+                mcc3,
+                mnc3,
+                lac3,
+                cell_id3,
+                arfcn3,
+                bsic3,
+                rxlev3,
+                ta3,
+                mcc4,
+                mnc4,
+                lac4,
+                cell_id4,
+                arfcn4,
+                bsic4,
+                rxlev4,
+                ta4,
+                mcc5,
+                mnc5,
+                lac5,
+                cell_id5,
+                arfcn5,
+                bsic5,
+                rxlev5,
+                ta5,
+                mcc6,
+                mnc6,
+                lac6,
+                cell_id6,
+                arfcn6,
+                bsic6,
+                rxlev6,
+                ta6
+             );
+
+             isCellData = 1;
+             
+             // save the service cell of the device
+             mcc = mcc0;
+             mnc = mnc0;
+             lac = lac0;
+             cellId = cell_id0;
+
+
+             APP_DEBUG(" >>>>>>>>>>>>>>data to send out => %s", cellInfoData);
+         }    
+
+       isCellData = 1;
+       Stop_Cell_Info();
+
+    }
+}
+
+
+void Stop_Cell_Info(void)
+{
+    Ql_RIL_SendATCmd(
+        "AT+QENG=0\r\n",
+        strlen("AT+QENG=0\r\n"),
+        QENG_Rsp_Handler,
+        NULL,
+        2000
+    );
+}
+
+
+
+static int hex_to_int(const char* hex)
+{
+    int val = 0;
+    while (*hex) {
+        char c = *hex++;
+        val <<= 4;
+        if (c >= '0' && c <= '9') val |= (c - '0');
+        else if (c >= 'A' && c <= 'F') val |= (c - 'A' + 10);
+        else if (c >= 'a' && c <= 'f') val |= (c - 'a' + 10);
+        else return -1;
+    }
+    return val;
 }
 
 static void SIM_Card_State_Ind(u32 sim_stat)

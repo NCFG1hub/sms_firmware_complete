@@ -104,9 +104,10 @@ typedef struct {
     u8 outputControl;
     char serverIP[20];
     char deviceTopic[22];
+    char towerTopic[22];
     char loginTopic[22];
-    char serverCommandTopic[22];
-    char clientId[30];
+    char serverCommandTopic[50];
+    char clientId[50];
     u8 isSimCardReaddy;
     u8 isGsmNetworkGotten;
     u8 isGpRsNetworkGotten;
@@ -143,6 +144,9 @@ typedef struct {
     s32 cellId;
     s16 rssi;
     u16 timeAd;
+    u16 arfcn;
+    u16 bsic;
+    u16 rxlev;
 } myCellInfo;
 
 
